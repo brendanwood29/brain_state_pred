@@ -4,3 +4,4 @@ __pycache__/
 *data*/
 temp*
 .vscode/
+splits/
