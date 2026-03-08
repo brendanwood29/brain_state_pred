@@ -1,4 +1,6 @@
 import sys
+import json
+from utils import get_train_loader
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
@@ -22,8 +24,20 @@ def get_config() -> ListConfig | DictConfig:
 if __name__ == '__main__':
     
     config = get_config()
-
-
+    with open('splits/train.json', 'r') as f:
+        data = json.load(f)
+    
+    train_loader = get_train_loader('splits/train.json', 5)
+    model = MLP(
+        in_size=train_loader[0][0].shape[0],
+        out_size=train_loader[0][1].shape[0],
+        widths=(100, 100, 100)
+    )
+    
+    for x, y in train_loader:
+        
+        y_hat = model(x)
+        
         
         
         
