@@ -1,3 +1,6 @@
 # Environments
 .venv/
 __pycache__/
+*data*/
+temp*
+.vscode/
