@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 def get_config() -> ListConfig | DictConfig:
     
-    default_config_path = "configs/config.yaml"
+    default_config_path = "configs/default_config.yaml"
 
     cfg = OmegaConf.load(default_config_path)
 
