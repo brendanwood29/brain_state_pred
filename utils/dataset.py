@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 
 class BrainFuncDataset(Dataset):
     
-    def __init__(self, split_path: str, step: int):
+    def __init__(self, split_path: str, step: int, device: str):
         super().__init__()
         
         self.inputs = []
@@ -21,10 +21,10 @@ class BrainFuncDataset(Dataset):
                 for i in range(data_length):
                     if (i + step) < data_length:
                         self.inputs.append(
-                            torch.tensor(bold_data[i:i+step]).t().reshape(-1, 1)
+                            torch.tensor(bold_data[i:i+step], dtype=torch.float).t().reshape(-1).to(device)
                         )
                         self.outputs.append(
-                            torch.tensor(bold_data[i+step]).t()
+                            torch.tensor(bold_data[i+step], dtype=torch.float).t().to(device)
                         )
                 
             
