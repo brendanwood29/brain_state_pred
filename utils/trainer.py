@@ -58,7 +58,7 @@ class Trainer(ABC):
         self.work_dir = Path(cfg.work_dir).joinpath(self.run_name)
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.step = 0
-        self.best_val_loss = 100
+        self.best_val_loss = torch.inf
         self.top_saved_models = []
         self.num_models_save = cfg.model.num_models_to_save
         
