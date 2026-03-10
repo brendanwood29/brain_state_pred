@@ -140,6 +140,8 @@ class Trainer(ABC):
         fig_dir = self.work_dir.joinpath('figures')
         fig_dir.mkdir(parents=True, exist_ok=True)
         
+        print(f'Model finished training with best validation {self.cfg.loss.name}: {self.best_val_loss:.4f}')
+        
         plt.figure()
         plt.plot(range(final_epochs+1), self.loss_epoch, 'r')
         plt.plot(range(final_epochs+1), self.val_loss)
