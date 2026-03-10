@@ -3,6 +3,7 @@ from .dataset import BrainFuncDataset
 from .loss_functions import get_loss_fn
 from .optimizers import get_optim
 from .schedulers import get_scheduler
+from .trainer import Trainer
 from pathlib import Path
 
 def get_loader(data_json: str | Path, step: int, device: str, batch_size=64, shuffle=True, **kwargs):
