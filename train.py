@@ -83,10 +83,10 @@ class Trainer():
             self.model.to('cuda' if torch.cuda.is_available() else 'cpu')
     
     def model_forward(self, batch):
-        x = batch
+        x, y = batch
         y_hat = self.model(x)
-        loss = self.loss(y_hat, x)
-        return loss.item()
+        loss = self.loss_fn(y_hat, y)
+        return loss
     
     def after_train_batch(self, loss):
         self.optimizer.zero_grad()
@@ -103,8 +103,8 @@ class Trainer():
         self.model.train()
         for x in train_loader:
             loss = self.model_forward(x)
-            loss_iters += loss
-            self.step_loss.append(loss)
+            loss_iters += loss.item()
+            self.step_loss.append(loss.item())
             self.step += 1
             self.after_train_batch(loss)
         self.loss_epoch.append(loss_iters / len(train_loader))
@@ -115,7 +115,7 @@ class Trainer():
         loss_iters = 0
         for x in val_loader:
             loss = self.model_forward(x)
-            loss_iters += loss
+            loss_iters += loss.item()
         self.val_loss.append(loss_iters / len(val_loader))
         
         if self.last_val_loss < self.best_val_loss:
@@ -193,11 +193,13 @@ if __name__ == '__main__':
     train_loader = get_loader(
         data_json='splits/train.json',
         step=3,
+        device=cfg.device
     )
     val_loader = get_loader(
         data_json='splits/val.json',
         step=3,
-        shuffle=False
+        shuffle=False,
+        device=cfg.device
     )
     
     
