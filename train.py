@@ -52,7 +52,13 @@ if __name__ == '__main__':
     with tqdm(range(cfg.num_epochs)) as pbar:
         for final_model_epochs in pbar:
             trainer.train(train_loader)
-            pbar.set_postfix({"train_loss": f"{trainer.loss_epoch[-1]:.4f}", "val_loss": f"{trainer.last_val_loss:.4f}"}, refresh=False)
+            pbar.set_postfix(
+                {
+                    "train_loss": f"{trainer.loss_epoch[-1]:.4f}", 
+                    "val_loss": f"{trainer.last_val_loss:.4f}"
+                }, 
+                refresh=False
+            )
             with torch.no_grad():
                 should_stop = trainer.val(val_loader)
             if should_stop:
