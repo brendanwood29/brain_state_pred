@@ -3,11 +3,11 @@ from torch import nn
 def get_loss_fn(name: str):
     
     configured_schedulers = [
-        'ce-loss'
+        'mse_loss'
     ]
     
     if name not in configured_schedulers:
         raise NotImplementedError(f'{name} is not a configured loss function, `name` must be one of {configured_schedulers}')
     
-    if name == 'ce-loss':
-        return nn.CrossEntropyLoss()
+    if name == 'mse_loss':
+        return nn.MSELoss()
