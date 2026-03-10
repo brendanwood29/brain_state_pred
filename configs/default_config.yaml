@@ -1,8 +1,10 @@
 optim:
   name: adamw
   lr: 1e-4
+  kwargs: {}
 loss:
   name: mse_loss
+  kwargs: {}
 scheduler:
   name: cosine
   kwargs:
