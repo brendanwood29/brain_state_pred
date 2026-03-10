@@ -2,19 +2,18 @@ optim:
   name: adamw
   lr: 1e-4
   kwargs: {} # TODO add this in default config when created
-
 loss:
-  name: ce-loss
+  name: mse_loss
   kwargs: {}
-
 scheduler:
   name: cosine
   kwargs:
     max_lr: ${optim.lr}
-    total_steps: 1000
-
+    total_steps: 1000000
 model: 
   name: mlp
+  print_summary: true
+  num_models_to_save: 5
   kwargs:
     in_size: 252
     out_size: 84 
@@ -22,11 +21,11 @@ model:
       - 100
       - 100
       - 100
-
 callbacks:
   use_early_stopping: true
-  early_stopping_epochs: 5
-
-
+  patience: 5
 num_epochs: 100
 batch_size: 64
+device: cuda:0
+run_name: run_1
+work_dir: work_dir
