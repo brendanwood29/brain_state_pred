@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "debugpy>=1.8.20",
+    "matplotlib>=3.10.8",
     "omegaconf>=2.3.0",
     "pandas>=3.0.1",
     "torch>=2.10.0",
