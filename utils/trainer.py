@@ -148,17 +148,20 @@ class Trainer(ABC):
         plt.xlabel('Epoch')
         plt.ylabel(f'{self.cfg.loss.name}')
         plt.legend(['Train Loss', 'Validation Loss'])
+        plt.tight_layout()
         plt.savefig(fig_dir.joinpath('loss_curves.png'))
         
         plt.figure()
         plt.plot(range(self.step), self.lr_history)
         plt.xlabel('Step')
         plt.ylabel('Learning Rate')
+        plt.tight_layout()
         plt.savefig(fig_dir.joinpath('lr.png'))
         
         plt.figure()
         plt.plot(range(self.step), self.step_loss)
         plt.xlabel('Step')
         plt.ylabel(f'{self.cfg.loss.name}')
+        plt.tight_layout()
         plt.savefig(fig_dir.joinpath('step_loss.png'))
         
