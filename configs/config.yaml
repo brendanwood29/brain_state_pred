@@ -1,3 +1,8 @@
+num_epochs: 100
+batch_size: 64
+device: cuda:0
+run_name: run_1
+work_dir: work_dir
 optim:
   name: adamw
   lr: 1e-4
@@ -22,8 +27,11 @@ model:
 callbacks:
   use_early_stopping: true
   patience: 5
-num_epochs: 100
-batch_size: 64
-device: cuda:0
-run_name: run_1
-work_dir: work_dir
+data:
+  train:
+    json_file: splits/train.json
+    step: 3
+  val:
+    json_file: splits/val.json
+    step: ${data.train.step}
+    shuffle: false

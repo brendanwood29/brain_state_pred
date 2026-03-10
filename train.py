@@ -35,19 +35,16 @@ if __name__ == '__main__':
     cfg = get_config()
     
     trainer = BrainStateTrainer(cfg)
-
-    train_losses = []
-    val_losses = []
     
     train_loader = get_loader(
-        data_json='splits/train.json',
-        step=3,
+        data_json=cfg.data.train.json_file,
+        step=cfg.data.train.step,
         device=cfg.device
     )
     val_loader = get_loader(
-        data_json='splits/val.json',
-        step=3,
-        shuffle=False,
+        data_json=cfg.data.val.json_file,
+        step=cfg.data.val.step,
+        shuffle=cfg.data.val.shuffle,
         device=cfg.device
     )
     
