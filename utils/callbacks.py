@@ -1,16 +1,12 @@
 class EarlyStopping():
 
   def __init__(self, patience: int, use: bool = True) -> None:
-    self.pat = patience
+    self.patience = patience
     self.best_loss = None
     self.not_better_count = 0
     self.use = use
 
-  def check_if_stop(self, val_loss: float) -> bool:
-
-    if not self.use:
-        return False
-    
+  def __call__(self, val_loss: float):
     if self.best_loss is None:
       self.best_loss = val_loss
       return False
@@ -22,4 +18,4 @@ class EarlyStopping():
       if self.not_better_count >= self.patience:
         return True
       else:
-        return False
+        return False    
