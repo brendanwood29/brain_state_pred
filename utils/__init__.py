@@ -5,10 +5,10 @@ from .optimizers import get_optim
 from .schedulers import get_scheduler
 from pathlib import Path
 
-def get_loader(data_json: str | Path, step: int, batch_size=64, shuffle=True, **kwargs):
+def get_loader(data_json: str | Path, step: int, device: str, batch_size=64, shuffle=True, **kwargs):
     
     return DataLoader(
-        BrainFuncDataset(data_json, step),
+        BrainFuncDataset(data_json, step, device),
         batch_size=batch_size,
         shuffle=shuffle,
         **kwargs
