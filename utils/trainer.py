@@ -152,12 +152,13 @@ class Trainer(ABC):
         plt.tight_layout()
         plt.savefig(fig_dir.joinpath('loss_curves.png'))
         
-        plt.figure()
-        plt.plot(range(self.step), self.lr_history)
-        plt.xlabel('Step')
-        plt.ylabel('Learning Rate')
-        plt.tight_layout()
-        plt.savefig(fig_dir.joinpath('lr.png'))
+        if self.scheduler is not None:
+            plt.figure()
+            plt.plot(range(self.step), self.lr_history)
+            plt.xlabel('Step')
+            plt.ylabel('Learning Rate')
+            plt.tight_layout()
+            plt.savefig(fig_dir.joinpath('lr.png'))
         
         plt.figure()
         plt.plot(range(self.step), self.step_loss)
