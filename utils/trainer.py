@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from torchinfo import summary
 from pathlib import Path
 from abc import ABC, abstractmethod
+from omegaconf import OmegaConf
 
 
 class Trainer(ABC):
@@ -66,6 +67,11 @@ class Trainer(ABC):
             self.model.to(cfg.device)
         else:
             self.model.to('cuda' if torch.cuda.is_available() else 'cpu')
+            
+        OmegaConf.save(
+            self.cfg,
+            self.work_dir.joinpath('config.yaml')
+        )
     
     @abstractmethod
     def model_forward(self, batch):
