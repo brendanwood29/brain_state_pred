@@ -25,19 +25,10 @@ class Trainer(ABC):
             lr=cfg.optim.lr,
             **cfg.optim.kwargs
         )
-        self.scheduler = get_scheduler(
-            cfg.scheduler.name, 
-            self.optimizer, 
-            **cfg.scheduler.kwargs
-        )
         self.loss_fn = get_loss_fn(
             cfg.loss.name,
             **cfg.loss.kwargs
         )
-        
-        if cfg.model.print_summary:
-            summary(self.model)
-        
         self.scheduler = None
         if cfg.scheduler is not None:
             self.lr_history = []
@@ -46,6 +37,10 @@ class Trainer(ABC):
                 self.optimizer, 
                 **cfg.scheduler.kwargs
             )
+        
+        if cfg.model.print_summary:
+            summary(self.model)
+        
         
         self.stopper = None
         if cfg.callbacks.use_early_stopping:
