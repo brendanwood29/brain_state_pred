@@ -37,12 +37,14 @@ if __name__ == '__main__':
     trainer = BrainStateTrainer(cfg)
     
     train_loader = get_loader(
-        data_json=cfg.data.train.json_file,
+        loader_type=cfg.data.train.loader_type,
+        data_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
         device=cfg.device
     )
     val_loader = get_loader(
-        data_json=cfg.data.val.json_file,
+        loader_type=cfg.data.val.loader_type,
+        data_path=cfg.data.val.data_path,
         step=cfg.data.val.step,
         shuffle=cfg.data.val.shuffle,
         device=cfg.device
