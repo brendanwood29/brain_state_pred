@@ -1,0 +1,33 @@
+num_epochs: 100
+batch_size: 50
+device: cuda:0
+run_name: run_1
+work_dir: npi_result_replication_my_code
+optim:
+  name: adam
+  lr: 1e-3
+  kwargs:
+    weight_decay: 5e-5
+loss:
+  name: mse_loss
+scheduler: null
+model: 
+  name: npi_mlp
+  print_summary: false
+  num_models_to_save: 5
+  kwargs:
+    input_dim: 1080
+    hidden_dim: 720
+    latent_dim: 288
+    output_dim: 360
+    device: ${device}
+callbacks:
+  use_early_stopping: true
+  patience: 5
+data:
+  train_proportion: 0.8
+  train: 
+    step: 3
+  test:
+    step: ${data.train.step}
+    shuffle: false
