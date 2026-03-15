@@ -155,6 +155,7 @@ class Trainer(ABC):
         plt.legend(['Train Loss', 'Validation Loss'])
         plt.tight_layout()
         plt.savefig(fig_dir.joinpath('loss_curves.png'))
+        plt.close()
         
         if self.scheduler is not None:
             plt.figure()
@@ -163,6 +164,7 @@ class Trainer(ABC):
             plt.ylabel('Learning Rate')
             plt.tight_layout()
             plt.savefig(fig_dir.joinpath('lr.png'))
+            plt.close()
         
         plt.figure()
         plt.plot(range(self.step), self.step_loss)
@@ -170,4 +172,5 @@ class Trainer(ABC):
         plt.ylabel(f'{self.cfg.loss.name}')
         plt.tight_layout()
         plt.savefig(fig_dir.joinpath('step_loss.png'))
+        plt.close()
         
