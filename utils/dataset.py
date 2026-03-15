@@ -5,11 +5,10 @@ from torch.utils.data import Dataset
 
 
 class SingleSubjectBrainFuncDataset(Dataset):
-    def __init__(self, file_path, step, device):
+    def __init__(self, bold_data, step, device):
         super().__init__()
         self.inputs = []
         self.outputs = []
-        bold_data = pd.read_csv(file_path, index_col=0).to_numpy()
         data_length = bold_data.shape[0]
         for i in range(data_length):
             if (i + step) < data_length:
@@ -27,11 +26,6 @@ class SingleSubjectBrainFuncDataset(Dataset):
         return self.inputs[idx], self.outputs[idx]
     
     
-    
-    
-
-
-
 class BrainFuncDataset(Dataset):
     
     def __init__(self, split_path: str, step: int, device: str):
