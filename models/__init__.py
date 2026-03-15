@@ -1,9 +1,10 @@
-from .mlp import MLP
+from .mlp import MLP, ANN_MLP
 
 def get_model(name: str, **kwargs):
         
     configured_models = [
         'mlp',
+        'npi_mlp'
     ]
     
     if name not in configured_models:
@@ -11,6 +12,10 @@ def get_model(name: str, **kwargs):
     
     if name == 'mlp':
         return MLP(
+            **kwargs
+        )
+    elif name == 'npi_mlp':
+        return ANN_MLP(
             **kwargs
         )
         

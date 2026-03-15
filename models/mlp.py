@@ -1,6 +1,25 @@
 import torch.nn as nn
 from typing import Tuple, Callable
 
+
+class ANN_MLP(nn.Module):
+
+    "Use MLP as a surrogate brain"
+
+    def __init__(self, input_dim, hidden_dim, latent_dim, output_dim, device):
+        super().__init__()
+        self.func = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, latent_dim),
+            nn.ReLU(),
+            nn.Linear(latent_dim, output_dim),
+        ).to(device)
+
+    def forward(self, x):
+        return self.func(x)
+    
+
 class MLP(nn.Module):
     
     def __init__(
