@@ -4,13 +4,13 @@ from .loss_functions import get_loss_fn
 from .optimizers import get_optim
 from .schedulers import get_scheduler
 from .trainer import Trainer
+from .make_datasplits import split_single_subject
 from pathlib import Path
 
 
 def get_loader(loader_type: str, data_path: str | Path, step: int, device: str, batch_size=64, shuffle=True, **kwargs):
     
     configured_loaders = [
-        'single',
         'all'
     ]
     
@@ -21,13 +21,6 @@ def get_loader(loader_type: str, data_path: str | Path, step: int, device: str, 
     
         return DataLoader(
             BrainFuncDataset(data_path, step, device),
-            batch_size=batch_size,
-            shuffle=shuffle,
-            **kwargs
-        )
-    elif loader_type == 'single':
-        return DataLoader(
-            SingleSubjectBrainFuncDataset(data_path, step, device),
             batch_size=batch_size,
             shuffle=shuffle,
             **kwargs
