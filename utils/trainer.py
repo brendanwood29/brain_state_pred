@@ -84,23 +84,27 @@ class Trainer(ABC):
     
     def train(self, train_loader: DataLoader):
         loss_iters = 0
+        samples_processed = 0
         self.model.train()
         for x in train_loader:
             loss = self.model_forward(x)
-            loss_iters += loss.item()
+            loss_iters += (loss.item() * x[0].shape[0])
+            samples_processed += x[0].shape[0]
             self.step_loss.append(loss.item())
             self.step += 1
             self.after_train_batch(loss)
-        self.loss_epoch.append(loss_iters / len(train_loader))
+        self.loss_epoch.append(loss_iters / samples_processed)
         
         
     def val(self, val_loader: DataLoader):
         self.model.eval()
         loss_iters = 0
+        samples_processed = 0
         for x in val_loader:
             loss = self.model_forward(x)
-            loss_iters += loss.item()
-        self.val_loss.append(loss_iters / len(val_loader))
+            loss_iters += (loss.item() * x[0].shape[0])
+            samples_processed += x[0].shape[0]
+        self.val_loss.append(loss_iters / samples_processed)
         
         if self.last_val_loss < self.best_val_loss:
             self.best_val_loss = self.last_val_loss
