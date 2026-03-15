@@ -1,13 +1,14 @@
 import json
 import numpy as np
+import pandas as pd
 from pathlib import Path
 
-TRAIN_SPLIT = 0.9
+TRAIN_SPLIT = 0.8
 TRAIN_SETS = [
-    'adni'
+    'hcp'
 ]
 VAL_SETS = [
-    'adni'
+    'hcp'
 ]
 TEST_SETS = [
 ]
@@ -25,13 +26,7 @@ def split_train_val(subjects):
     return subjects[train_idx], subjects[val_idx]
     
 
-if __name__ == '__main__':
-    
-    data_dir = Path('toy_data')
-    splits = Path('splits')
-    splits.mkdir(parents=True, exist_ok=True)
-    
-    
+def split_by_subjects(data_dir, splits):
     train = {}
     val = {}
     test = {}
@@ -64,4 +59,25 @@ if __name__ == '__main__':
         json.dump(val, f, indent=4)
     with open(splits.joinpath('test.json'), 'w') as f:
         json.dump(test, f, indent=4)
+        
+
+def split_single_subject(data_path, train_proportion):
+    
+    bold_data = pd.read_csv(data_path, index_col=0).to_numpy()
+    bold_data = bold_data[30:, :]
+    data_length = bold_data.shape[0]
+    
+    return bold_data[:int(train_proportion * data_length), :], bold_data[int(train_proportion * data_length):, :]
+
+    
+
+if __name__ == '__main__':
+    
+    data_dir = Path('data_like-npi')
+    splits = Path('splits')
+    splits.mkdir(parents=True, exist_ok=True)
+    
+    split_by_subjects(data_dir, splits)
+    
+
         
