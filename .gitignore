@@ -6,3 +6,4 @@ temp*
 .vscode/
 splits/
 work_dir/
+*result*/
