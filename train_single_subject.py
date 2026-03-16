@@ -1,5 +1,7 @@
 import sys
 import torch
+import random
+import numpy as np
 from torch.utils.data import DataLoader
 from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject
 from omegaconf.dictconfig import DictConfig
@@ -7,6 +9,17 @@ from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
 from tqdm import tqdm
 from pathlib import Path
+
+
+def fix_seeds(seed=42):
+    print(f'Fixing random seed to {seed}')
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 def get_config() -> ListConfig | DictConfig:
     
@@ -35,6 +48,8 @@ class SingleSubjectBrainStateTrainer(Trainer):
 if __name__ == '__main__':
     
     cfg = get_config()
+    if cfg.seed is not None:
+        fix_seeds(42)
     
 
     input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
@@ -81,7 +96,7 @@ if __name__ == '__main__':
                 if should_stop:
                     print(f'Stopped after {final_model_epochs} epochs due to early stopping.')
                     break        
-        trainer.training_summary(final_model_epochs)
+        trainer.training_summary(final_model_epochs, save_final=True)
             
             
             
