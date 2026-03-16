@@ -13,7 +13,7 @@ class SingleSubjectBrainFuncDataset(Dataset):
         for i in range(data_length):
             if (i + step) < data_length:
                 self.inputs.append(
-                    torch.tensor(bold_data[i:i+step], dtype=torch.float).t().reshape(-1).to(device)
+                    torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten().to(device)
                 )
                 self.outputs.append(
                     torch.tensor(bold_data[i+step], dtype=torch.float).t().to(device)
