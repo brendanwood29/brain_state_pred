@@ -19,6 +19,11 @@ class Trainer(ABC):
             cfg.model.name, 
             **cfg.model.kwargs 
         )
+        if cfg.model.init is not None:
+            self.model.load_state_dict(
+                torch.load(cfg.model.init.weights),
+                strict=cfg.model.init.strict
+            )
         self.optimizer = get_optim(
             cfg.optim.name, 
             self.model.parameters(), 
@@ -140,7 +145,17 @@ class Trainer(ABC):
                 worst_path.unlink()
             
 
-    def training_summary(self, final_epochs: int):
+    def training_summary(self, final_epochs: int, save_final: bool):
+        if save_final:
+            out_dir = self.work_dir.joinpath('models')
+            out_dir.mkdir(parents=True, exist_ok=True)
+            params = {
+                'model_state': self.model.state_dict(),
+                'optim_state': self.optimizer.state_dict(),
+                'val_loss': self.last_val_loss,
+            }
+            model_name = out_dir.joinpath('final_model.pt')
+            torch.save(params, model_name)
         
         fig_dir = self.work_dir.joinpath('figures')
         fig_dir.mkdir(parents=True, exist_ok=True)
