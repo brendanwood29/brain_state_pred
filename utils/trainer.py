@@ -38,6 +38,13 @@ class Trainer(ABC):
                 **cfg.scheduler.kwargs
             )
         
+        if cfg.model.init.weights:
+            self.load_model(
+                cfg.model.init.weights, 
+                weights_only=cfg.model.init.weights_only, 
+                strict=cfg.model.init.strict
+            )
+        
         if cfg.model.freeze_modules:
             self.edit_requires_grad(cfg.model.freeze_modules, requires_grad=False)
         if cfg.model.unfreeze_modules:
