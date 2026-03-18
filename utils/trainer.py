@@ -38,7 +38,7 @@ class Trainer(ABC):
                 **cfg.scheduler.kwargs
             )
         
-        if cfg.model.init.weights:
+        if cfg.model.init:
             self.load_model(
                 cfg.model.init.weights, 
                 weights_only=cfg.model.init.weights_only, 
