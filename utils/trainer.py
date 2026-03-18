@@ -121,7 +121,7 @@ class Trainer(ABC):
     
     @property
     def last_val_loss(self):
-        return self.val_loss[-1] if self.val_loss else 0
+        return self.val_loss[-1] if self.val_loss else float(torch.inf)
     
     
     def save_model(self):
