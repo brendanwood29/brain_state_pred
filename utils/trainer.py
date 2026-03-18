@@ -19,11 +19,6 @@ class Trainer(ABC):
             cfg.model.name, 
             **cfg.model.kwargs 
         )
-        if cfg.model.init is not None:
-            self.model.load_state_dict(
-                torch.load(cfg.model.init.weights),
-                strict=cfg.model.init.strict
-            )
         self.optimizer = get_optim(
             cfg.optim.name, 
             self.model.parameters(), 
@@ -113,7 +108,7 @@ class Trainer(ABC):
         
         if self.last_val_loss < self.best_val_loss:
             self.best_val_loss = self.last_val_loss
-            self.save_model()
+            self.save_after_val()
             
         if self.stopper is not None:
             return self.stopper(self.last_val_loss)
@@ -124,18 +119,9 @@ class Trainer(ABC):
         return self.val_loss[-1] if self.val_loss else float(torch.inf)
     
     
-    def save_model(self):
-        out_dir = self.work_dir.joinpath('models')
-        out_dir.mkdir(parents=True, exist_ok=True)
-        params = {
-            'model_state': self.model.state_dict(),
-            'optim_state': self.optimizer.state_dict(),
-            'val_loss': self.last_val_loss,
-        }
-        if self.scheduler is not None:
-            params['scheduler_state'] = self.scheduler.state_dict()
-        model_name = out_dir.joinpath(f'{self.run_name}_best_val_loss_{self.last_val_loss:.4f}.pt')
-        torch.save(params, model_name)
+    def save_after_val(self):
+        
+        model_name = self.save_model()
         
         self.top_saved_models.append([self.best_val_loss, model_name])
         self.top_saved_models.sort(key=lambda x: x[0])
@@ -145,17 +131,38 @@ class Trainer(ABC):
                 worst_path.unlink()
             
 
+    def load_model(self, file: str | Path, weights_only: bool, strict: bool = True):
+        
+        pt_file = torch.load(file)
+        
+        self.model.load_state_dict(pt_file['model_state'], strict=strict)
+        if weights_only:
+            return
+        self.optimizer.load_state_dict(pt_file['optim_state'])
+        self.val_loss.append(pt_file['val_loss'])
+        if 'scheduler_state' in pt_file:
+            self.scheduler.load_state_dict(pt_file['scheduler_state'])
+            
+    def save_model(self, model_name: str | None = None):
+        out_dir = self.work_dir.joinpath('models')
+        out_dir.mkdir(parents=True, exist_ok=True)
+        params = {
+            'model_state': self.model.state_dict(),
+            'optim_state': self.optimizer.state_dict(),
+            'val_loss': self.last_val_loss,
+        }
+        if self.scheduler is not None:
+            params['scheduler_state'] = self.scheduler.state_dict()
+        if model_name is None:
+            model_name = f'{self.run_name}_best_val_loss_{self.last_val_loss:.4f}.pt'
+        model_name = out_dir.joinpath(model_name)
+        torch.save(params, model_name)
+        
+        return model_name
+        
     def training_summary(self, final_epochs: int, save_final: bool):
         if save_final:
-            out_dir = self.work_dir.joinpath('models')
-            out_dir.mkdir(parents=True, exist_ok=True)
-            params = {
-                'model_state': self.model.state_dict(),
-                'optim_state': self.optimizer.state_dict(),
-                'val_loss': self.last_val_loss,
-            }
-            model_name = out_dir.joinpath('final_model.pt')
-            torch.save(params, model_name)
+            self.save_model('final_model.pt')
         
         fig_dir = self.work_dir.joinpath('figures')
         fig_dir.mkdir(parents=True, exist_ok=True)
