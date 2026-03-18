@@ -1,11 +1,23 @@
 import sys
 import torch
+import random
+import numpy as np
 from utils import get_loader, Trainer
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
+def fix_seeds(seed=42):
+    print(f'Fixing random seed to {seed}')
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
+    
 def get_config() -> ListConfig | DictConfig:
     
     default_config_path = "configs/default_config.yaml"
@@ -33,17 +45,17 @@ class BrainStateTrainer(Trainer):
 if __name__ == '__main__':
     
     cfg = get_config()
+    if cfg.seed is not None:
+        fix_seeds(42)
     
     trainer = BrainStateTrainer(cfg)
     
     train_loader = get_loader(
-        loader_type=cfg.data.train.loader_type,
         data_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
         device=cfg.device
     )
     val_loader = get_loader(
-        loader_type=cfg.data.val.loader_type,
         data_path=cfg.data.val.data_path,
         step=cfg.data.val.step,
         shuffle=cfg.data.val.shuffle,
