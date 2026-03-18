@@ -38,6 +38,10 @@ class Trainer(ABC):
                 **cfg.scheduler.kwargs
             )
         
+        if cfg.model.freeze_modules:
+            self.edit_requires_grad(cfg.model.freeze_modules, requires_grad=False)
+        if cfg.model.unfreeze_modules:
+            self.edit_requires_grad(cfg.model.unfreeze_modules, requires_grad=True)
         if cfg.model.print_summary:
             summary(self.model)
         
@@ -159,7 +163,34 @@ class Trainer(ABC):
         torch.save(params, model_name)
         
         return model_name
+
+    def edit_requires_grad(self, modules: list, requires_grad: bool, verbose: bool = True):
+        params_changed = 0
+        if requires_grad:
+            action = 'Unfreezing'
+        else:
+            action = 'Freezing'
         
+        for name, param in self.model.named_parameters():
+            for keyword in modules:
+                if isinstance(keyword, list):
+                    # Check if all specify keywords are in param name, if keyword is list
+                    if all([word in name for word in keyword]):
+                        if verbose:
+                            print(f'{action} {name}')
+                        param.requires_grad = requires_grad
+                        params_changed += torch.numel(param.data)
+                
+                else:
+                    if keyword in name:
+                        if verbose:
+                            print(f'{action} {name}')
+                        param.requires_grad = requires_grad
+                        params_changed += torch.numel(param.data)
+    
+        
+
+    
     def training_summary(self, final_epochs: int, save_final: bool):
         if save_final:
             self.save_model('final_model.pt')
