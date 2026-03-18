@@ -1,5 +1,7 @@
 import torch
 import torch.nn as nn
+from typing import Callable
+
 
 class RotaryPositionalEmbedding(nn.Module):
     """Rotary positional embedding, from google TimesFM, only for Q and K matrices"""
@@ -59,6 +61,40 @@ class RotaryPositionalEmbedding(nn.Module):
         return torch.cat([first_part, second_part], dim=-1)
 
 
+class LoRA(nn.Module):
+    
+    def __init__(
+        self,
+        in_dim,
+        r, 
+        out_dim,
+        alpha,
+        use_bias: bool = False,
+        activation: Callable = nn.GELU
+    ):
+        super().__init__()
+        
+        self.r = r
+        self.alpha = alpha
+        
+        a = nn.Linear(in_dim, r, use_bias)
+        nn.init.constant_(a.weight, 0.0)
+        b = nn.Linear(r, out_dim, use_bias)
+        
+        self.lora = nn.Sequential(
+            a, 
+            activation(),
+            b
+        )
+    
+    def forward(self, x):
+        
+        x = self.lora(x)
+        x *= (self.alpha // self.r)
+        
+        return x
+
+
 class MultiHeadSelfAttention(nn.Module):
     
     def __init__(
@@ -66,11 +102,14 @@ class MultiHeadSelfAttention(nn.Module):
         in_features,
         num_heads,
         steps: int = 3,
+        use_lora: bool = False,
         attn_drop_prob: float = 0.1,
-        final_drop_prob: float = 0.1
+        final_drop_prob: float = 0.1,
+        **kwargs
     ):
         super().__init__()
         
+        self.use_lora = use_lora
         self.num_heads = num_heads
         self.factor = ((in_features // self.num_heads) ** -0.5)
         self.qkv_proj = nn.Linear(in_features, 3 * in_features, bias=True)
@@ -79,6 +118,12 @@ class MultiHeadSelfAttention(nn.Module):
         self.final_drop = nn.Dropout(final_drop_prob)
         self.pos_embed = RotaryPositionalEmbedding(in_features // num_heads, 1, steps)
         
+        if self.use_lora:
+            self.lora = LoRA(
+                in_dim=in_features,
+                out_dim=2*in_features,
+                **kwargs
+            )
         
         self.register_buffer(
             'mask',
@@ -90,7 +135,12 @@ class MultiHeadSelfAttention(nn.Module):
         
         B, N, C = x.shape
         qkv = self.qkv_proj(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]
+        if self.use_lora:
+            lora_qv = self.lora(x).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            q, k, v = qkv[0] + lora_qv[0], qkv[1], qkv[2] + lora_qv[1]
+        else:
+            q, k, v = qkv[0], qkv[1], qkv[2]
+            
         q = self.pos_embed(q)
         k = self.pos_embed(k)
         
@@ -159,9 +209,11 @@ class FFN(nn.Module):
     def __init__(
         self,
         in_features: int,
+        last_layer: bool = False
     ):
         super().__init__()
         
+        self.last_layer = last_layer
         self.layer1 = nn.Linear(in_features, in_features)
         self.layer2 = nn.Linear(in_features, in_features)
         self.activation = nn.GELU()
@@ -171,6 +223,8 @@ class FFN(nn.Module):
         x = self.layer1(x)
         x = self.activation(x)
         x = self.layer2(x)
+        if not self.last_layer:
+            x = self.activation(x)
         
         return x
 
@@ -181,12 +235,14 @@ class Block(nn.Module):
         self,
         in_features: int,
         num_heads: int,
-        steps: int
+        steps: int,
+        last_layer: bool = False,
+        **kwargs
     ):
         super().__init__()
-        self.attn = MultiHeadSelfAttention(in_features, num_heads, steps)
-        self.ffn = FFN(in_features)
         self.layer_norm1 = nn.LayerNorm((steps, in_features))
+        self.attn = MultiHeadSelfAttention(in_features, num_heads, steps, **kwargs)
+        self.ffn = FFN(in_features, last_layer=last_layer)
         self.layer_norm2 = nn.LayerNorm((steps, in_features))
     
     def forward(self, x):
@@ -211,11 +267,12 @@ class TransformerModel(nn.Module):
         in_features: int,
         num_heads: int,
         steps: int,
+        **kwargs
     ) -> None:
         super().__init__()
         
         self.mod_list = [
-            Block(in_features, num_heads, steps) for _ in range(num_blocks)
+            Block(in_features, num_heads, steps, i == (num_blocks - 1), **kwargs) for i in range(num_blocks)
         ]
         
         self.model = nn.Sequential(*self.mod_list)
