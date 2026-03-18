@@ -34,9 +34,12 @@ class BrainStateTrainer(Trainer):
     
     def __init__(self, cfg):
         super().__init__(cfg)
-    
+        self.num_steps = cfg.model.kwargs.steps
+        
     def model_forward(self, batch):
         x, y = batch
+        B, N = x.shape
+        x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss
@@ -78,7 +81,7 @@ if __name__ == '__main__':
             if should_stop:
                 print(f'Stopped after {final_model_epochs} epochs due to early stopping.')
                 break        
-    trainer.training_summary(final_model_epochs)
+    trainer.training_summary(final_model_epochs, save_final=True)
         
         
         

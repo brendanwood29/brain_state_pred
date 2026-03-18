@@ -37,9 +37,12 @@ class SingleSubjectBrainStateTrainer(Trainer):
     
     def __init__(self, cfg):
         super().__init__(cfg)
+        self.num_steps = cfg.model.kwargs.steps
     
     def model_forward(self, batch):
         x, y = batch
+        B, N = x.shape
+        x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss
@@ -52,7 +55,7 @@ if __name__ == '__main__':
         fix_seeds(42)
     
 
-    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
+    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))[:1]
     
     for subject in tqdm(input_csv_list):
         cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
