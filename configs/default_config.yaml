@@ -12,15 +12,12 @@ scheduler:
     total_steps: 1000000
 model: 
   name: mlp
+  freeze_modules: null
+  unfreeze_modules: null
   print_summary: true
   num_models_to_save: 5
-  kwargs:
-    in_size: 252
-    out_size: 84 
-    widths: 
-      - 100
-      - 100
-      - 100
+  init: null
+  kwargs: {}
 callbacks:
   use_early_stopping: true
   patience: 5
@@ -29,3 +26,4 @@ batch_size: 64
 device: cuda:0
 run_name: run_1
 work_dir: work_dir
+seed: null

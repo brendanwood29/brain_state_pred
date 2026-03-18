@@ -1,8 +1,9 @@
-num_epochs: 100
-batch_size: 50
+num_epochs: 500
+batch_size: 64
 device: cuda:0
 run_name: run_1
-work_dir: npi_result_replication_my_code
+work_dir: npi_result_fine-tune_test
+seed: 42
 optim:
   name: adam
   lr: 1e-3
@@ -10,24 +11,46 @@ optim:
     weight_decay: 5e-5
 loss:
   name: mse_loss
-scheduler: null
-model: 
-  name: npi_mlp
-  print_summary: false
-  num_models_to_save: 5
+# scheduler: null
+scheduler:   
+  name: cosine
   kwargs:
-    input_dim: 1080
-    hidden_dim: 720
-    latent_dim: 288
-    output_dim: 360
-    device: ${device}
+    max_lr: ${optim.lr}
+    total_steps: 10000
+    pct_start: 0.1
+model: 
+  name: transformer
+  print_summary: true
+  num_models_to_save: 2
+  freeze_modules:
+    - model
+  unfreeze_modules:
+    - lora
+    - norm
+  init: 
+    weights: npi_result_all_data/run_1/models/run_1_best_val_loss_0.1775.pt
+    weights_only: true
+    strict: false
+  kwargs:
+    in_features: 360
+    num_heads: 12
+    steps: 3
+    num_blocks: 5
+    use_lora: true
+    alpha: 8
+    r: 8
+    # input_dim: 1080
+    # hidden_dim: 720
+    # latent_dim: 288
+    # output_dim: 360
+    # device: ${device}
 callbacks:
-  use_early_stopping: true
+  use_early_stopping: false
   patience: 5
 data:
   train_proportion: 0.8
   train: 
-    step: 3
+    step: ${model.kwargs.steps}
   test:
     step: ${data.train.step}
     shuffle: false

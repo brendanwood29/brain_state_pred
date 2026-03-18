@@ -1,37 +1,46 @@
-num_epochs: 100
-batch_size: 64
+num_epochs: 50
+batch_size: 256
 device: cuda:0
 run_name: run_1
-work_dir: work_dir
+work_dir: npi_result_all_data
+seed: 42
 optim:
-  name: adamw
-  lr: 1e-4
+  name: adam
+  lr: 1e-3
+  kwargs:
+    weight_decay: 5e-5
 loss:
   name: mse_loss
-scheduler:
+# scheduler: null
+scheduler:   
   name: cosine
   kwargs:
     max_lr: ${optim.lr}
-    total_steps: 1000000
+    total_steps: 211800
+    pct_start: 0.1
 model: 
-  name: mlp
+  name: transformer
   print_summary: true
-  num_models_to_save: 5
+  num_models_to_save: 4
+  init: null
   kwargs:
-    in_size: 252
-    out_size: 84 
-    widths: 
-      - 100
-      - 100
-      - 100
+    in_features: 360
+    num_heads: 12
+    steps: 3
+    num_blocks: 5
+    # input_dim: 1080
+    # hidden_dim: 720
+    # latent_dim: 288
+    # output_dim: 360
+    # device: ${device}
 callbacks:
   use_early_stopping: true
   patience: 5
 data:
   train:
-    json_file: splits/train.json
-    step: 3
+    data_path: splits/train.json
+    step: ${model.kwargs.steps}
   val:
-    json_file: splits/val.json
+    data_path: splits/val.json
     step: ${data.train.step}
     shuffle: false
