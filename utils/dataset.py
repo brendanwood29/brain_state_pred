@@ -67,41 +67,55 @@ class BrainFuncGraphDataset(PyGDataset):
         split_path: str,
         threshold: float,
         step: int,
-        device: str
     ):
         super().__init__()
 
         with open(split_path, 'r') as f:
             data = json.load(f)
         
-        self.items = []
+        self.dataset = []
+        self.bold = []
+        self.weights = []
+        self.edge_idxs = []
         
-        for subject in list(data.keys())[:1]:
+        scan_num = 0
+        for subject in data:
             for ses in data[subject]:
-                bold_data = pd.read_csv(data[subject][ses]['file_path'], index_col=0).to_numpy().astype(float)
-                fc = pd.read_csv(data[subject][ses]['file_path'].replace('cleaned-timeseries', 'connectome'), index_col=0).to_numpy().astype(float)
-                fc[np.eye(fc.shape[0]).astype(bool)] = 0
-                src, des = np.where(abs(fc) > threshold)
+                bold_data = pd.read_csv(data[subject][ses]['file_path'], index_col=0).to_numpy()
+                fc = pd.read_csv(data[subject][ses]['file_path'].replace('cleaned-timeseries', 'connectome'), index_col=0).to_numpy()
+                
+                src, des = np.where(np.abs(fc) > threshold)
                 edge_idx = np.stack([src, des])
                 weights = fc[src, des]
                 
+                self.bold.append(
+                    torch.tensor(bold_data, dtype=torch.float)
+                )
+                self.weights.append(
+                    torch.tensor(np.abs(weights), dtype=torch.float)
+                )
+                self.edge_idxs.append(
+                    torch.tensor(edge_idx, dtype=torch.long)
+                )
                 
                 data_length = bold_data.shape[0]
                 for i in range(data_length):
                     if (i + step) < data_length:
-                        
-                        self.items.append(
-                            Data(
-                                x=torch.tensor(bold_data[i:i+step].T, dtype=torch.float),
-                                edge_index=torch.tensor(edge_idx, dtype=torch.long),
-                                edge_attr=torch.tensor(weights, dtype=torch.float),
-                                y=torch.tensor(bold_data[step+i], dtype=torch.float)
-                            ).to(device)
+                        self.dataset.append(
+                            (scan_num, i, i+step)
                         )
+                scan_num += 1
                 
     def len(self):
-        return len(self.items)
+        return len(self.dataset)
 
     def get(self, idx):
-        return self.items[idx]
-    
+        ref = self.dataset[idx]
+
+        return Data(
+            x=self.bold[ref[0]][ref[1]:ref[2]].t(),
+            edge_index=self.edge_idxs[ref[0]],
+            edge_attr=self.weights[ref[0]].unsqueeze(-1),
+            y=self.bold[ref[0]][ref[2]].unsqueeze(-1)
+        )
+        
