@@ -60,7 +60,7 @@ class BrainFuncDataset(TorchDataset):
         return self.inputs[idx], self.outputs[idx]
         
         
-class BrainFuncGraphDataset(PyGDataset):
+class BrainFuncGCNDataset(PyGDataset):
     
     def __init__(
         self,
@@ -118,4 +118,76 @@ class BrainFuncGraphDataset(PyGDataset):
             edge_attr=self.weights[ref[0]].unsqueeze(-1),
             y=self.bold[ref[0]][ref[2]].unsqueeze(-1)
         )
+        
+class SingleSubjectBrainFuncGCNDataset(PyGDataset):
+
+    def __init__(
+        self,
+        bold_data: np.array,
+        fc: np.array,
+        threshold: float,
+        step: int,
+    ):
+        super().__init__()
+        
+        self.dataset = []
+        src, des = np.where(np.abs(fc) > threshold)
+        edge_idx = np.stack([src, des])
+        weights = np.abs(fc[src, des])
+        
+
+        data_length = bold_data.shape[0]
+        for i in range(data_length):
+            if (i + step) < data_length:
+                self.dataset.append(
+                    Data(
+                        x=torch.tensor(bold_data[i:i+step], dtype=torch.float).t(),
+                        edge_index=torch.tensor(edge_idx, dtype=torch.long),
+                        edge_attr=torch.tensor(weights, dtype=torch.float),
+                        y=torch.tensor(bold_data[step], dtype=torch.float).unsqueeze(-1)
+                    )
+                )
+        
+    def len(self):
+        return len(self.dataset)
+
+    def get(self, idx):
+
+        return self.dataset[idx]
+    
+class SingleSubjectBrainFuncSTGCNDataset(TorchDataset):
+
+    def __init__(
+        self,
+        bold_data: np.array,
+        fc: np.array,
+        threshold: float,
+        step: int,
+    ):
+        super().__init__()
+        
+        self.dataset = []
+        self.bold = torch.tensor(bold_data, dtype=torch.float)
+        
+        src, des = np.where(np.abs(fc) > threshold)
+        edge_idx = np.stack([src, des])
+        weights = fc[src, des]
+        self.edge_idxs = torch.tensor(edge_idx, dtype=torch.long)
+        self.weights = torch.tensor(np.abs(weights), dtype=torch.float)
+        
+        data_length = bold_data.shape[0]
+        for i in range(data_length):
+            if (i + step) < data_length:
+                self.dataset.append(
+                    (i, i+step)
+                )
+        
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        ref = self.dataset[idx]
+        
+        return self.bold[ref[0]:ref[1]].unsqueeze(-1), self.bold[ref[1]], self.edge_idxs, self.weights
+
         
