@@ -15,7 +15,7 @@ class GCN(nn.Module):
         self.conv_in = gnn.GCNConv(num_features, hidden_dim)
         self.conv_mid = gnn.GCNConv(hidden_dim, hidden_dim)
         self.conv_final = gnn.GCNConv(hidden_dim, 1)
-        self.activation = activation
+        self.activation = activation()
 
     def forward(self, x, edge_index, edge_weight):
         x = self.conv_in(x, edge_index, edge_weight)
