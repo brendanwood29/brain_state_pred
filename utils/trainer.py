@@ -10,7 +10,7 @@ from torchinfo import summary
 from pathlib import Path
 from abc import ABC, abstractmethod
 from omegaconf import OmegaConf
-
+from tqdm import tqdm
 
 class Trainer(ABC):
     
@@ -81,13 +81,19 @@ class Trainer(ABC):
     
     @abstractmethod
     def model_forward(self, batch):
+        """Abstract method for a forward pass of a model
+
+        Args:
+            batch: Batch from DataLoader.
+        Returns:
+            (loss, current_batch_size)
+        """
         pass
     
     def after_train_batch(self, loss):
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        
         if self.scheduler is not None:
             self.scheduler.step()
             self.lr_history.append(self.scheduler.get_last_lr())
@@ -97,13 +103,15 @@ class Trainer(ABC):
         loss_iters = 0
         samples_processed = 0
         self.model.train()
-        for x in train_loader:
-            loss = self.model_forward(x)
-            loss_iters += (loss.item() * x[0].shape[0])
-            samples_processed += x[0].shape[0]
-            self.step_loss.append(loss.item())
-            self.step += 1
-            self.after_train_batch(loss)
+        with tqdm(train_loader, disable=False) as pbar:
+            for x in pbar:
+                loss, batch_size = self.model_forward(x)
+                loss_iters += (loss.item() * batch_size)
+                samples_processed += batch_size
+                pbar.set_postfix({'train_loss_step': f'{loss.item():.4f}'})
+                self.step_loss.append(loss.item())
+                self.step += 1
+                self.after_train_batch(loss)
         self.loss_epoch.append(loss_iters / samples_processed)
         
         
@@ -111,10 +119,11 @@ class Trainer(ABC):
         self.model.eval()
         loss_iters = 0
         samples_processed = 0
-        for x in val_loader:
-            loss = self.model_forward(x)
-            loss_iters += (loss.item() * x[0].shape[0])
-            samples_processed += x[0].shape[0]
+        with tqdm(val_loader, disable=False) as pbar:
+            for x in pbar:
+                loss, batch_size = self.model_forward(x)
+                loss_iters += (loss.item() * batch_size)
+                samples_processed += batch_size
         self.val_loss.append(loss_iters / samples_processed)
         
         if self.last_val_loss < self.best_val_loss:
