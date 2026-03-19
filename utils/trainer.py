@@ -103,7 +103,7 @@ class Trainer(ABC):
         loss_iters = 0
         samples_processed = 0
         self.model.train()
-        with tqdm(train_loader, disable=False) as pbar:
+        with tqdm(train_loader, disable=not self.cfg.batch_pbar) as pbar:
             for x in pbar:
                 loss, batch_size = self.model_forward(x)
                 loss_iters += (loss.item() * batch_size)
@@ -119,7 +119,7 @@ class Trainer(ABC):
         self.model.eval()
         loss_iters = 0
         samples_processed = 0
-        with tqdm(val_loader, disable=False) as pbar:
+        with tqdm(val_loader, disable=not self.cfg.batch_pbar) as pbar:
             for x in pbar:
                 loss, batch_size = self.model_forward(x)
                 loss_iters += (loss.item() * batch_size)
