@@ -32,12 +32,34 @@ class GCN(nn.Module):
     
 class STGCN(nn.Module):
     
-    def __init__(self):
+    def __init__(
+        self,
+        num_nodes: int,
+        in_features: int,
+        hidden_dim: int,
+        out_features: int,
+        kernel_size: int = 3,
+        cheb_kernel_size: int = 5,
+    ):
         super().__init__()
         
-        self.rec_1 = STConv(360, 1, 12, 1, 3, 2)
-        self.rec_2 = STConv(360, 1, 12, 1, 3, 2)
-        self.lin = nn.Linear(360, 360)
+        self.rec_1 = STConv(
+            num_nodes,
+            in_features,
+            hidden_dim,
+            out_features,
+            kernel_size,
+            cheb_kernel_size,
+        )
+        self.rec_2 = STConv(
+            num_nodes,
+            in_features,
+            hidden_dim,
+            out_features,
+            kernel_size,
+            cheb_kernel_size,
+        )
+        self.lin = nn.Linear(num_nodes, num_nodes)
         self.activate = nn.ReLU()
         
     def forward(self, x, edge_index, edge_weight=None):
