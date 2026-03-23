@@ -2,8 +2,10 @@ import sys
 import torch
 import random
 import numpy as np
-from torch.utils.data import DataLoader
-from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject
+import pandas as pd
+from torch.utils.data import DataLoader as TorchDataLoader
+from torch_geometric.loader import DataLoader as PyGDataLoader
+from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject, SingleSubjectBrainFuncGCNDataset
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
@@ -40,13 +42,28 @@ class SingleSubjectBrainStateTrainer(Trainer):
         self.num_steps = cfg.model.kwargs.steps
     
     def model_forward(self, batch):
+        batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
-        return loss
+        return loss, B
 
+    
+    
+    # def model_forward(self, batch):
+    #     batch = batch.to(self.cfg.device)
+    #     y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr)
+    #     loss = self.loss_fn(y_hat, batch.y)
+    #     return loss, batch.num_graphs
+
+    # def model_forward(self, batch):
+    #     batch = [x.to(self.cfg.device) for x in batch]
+    #     x, y, idx, weights = batch
+    #     y_hat = self.model(x,  idx.squeeze(0), weights.squeeze(0))
+    #     loss = self.loss_fn(y_hat, y)
+    #     return loss
 
 if __name__ == '__main__':
     
@@ -55,33 +72,56 @@ if __name__ == '__main__':
         fix_seeds(42)
     
 
-    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))[:1]
+    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/sub-141826_ses-3T_task-rest_acq-lr_space-MNIICBM152*timeseries.csv'))
     
     for subject in tqdm(input_csv_list):
         cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
         trainer = SingleSubjectBrainStateTrainer(cfg)
-        
         train_data, test_data = split_single_subject(subject, cfg.data.train_proportion)
+        fc = pd.read_csv(subject.with_name(subject.name.replace('cleaned-timeseries', 'connectome')), index_col=0).to_numpy()
         
-        train_loader = DataLoader(
+        ## single subject brain func
+        train_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
-                train_data, 
-                cfg.data.train.step, 
-                cfg.device
+                train_data,
+                cfg.data.train.step,
             ),
             batch_size=cfg.batch_size,
             shuffle=True
         )
-            
-        test_loader = DataLoader(
+        test_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
-                test_data, 
-                cfg.data.test.step, 
-                cfg.device
+                test_data,
+                cfg.data.test.step,
             ),
             batch_size=cfg.batch_size,
             shuffle=False
         )
+        
+        # single subject gcn
+        # train_loader = PyGDataLoader(
+        #     SingleSubjectBrainFuncGCNDataset(
+        #         train_data,
+        #         fc,
+        #         cfg.data.train.threshold,
+        #         cfg.data.train.step,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=True
+        # )
+                    
+        
+        # test_loader = PyGDataLoader(
+        #     SingleSubjectBrainFuncGCNDataset(
+        #         test_data, 
+        #         fc,
+        #         cfg.data.train.threshold,
+        #         cfg.data.test.step,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=False
+        # )
+        
         
         
         with tqdm(range(cfg.num_epochs)) as pbar:
