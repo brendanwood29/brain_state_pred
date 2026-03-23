@@ -105,6 +105,7 @@ class Trainer(ABC):
         self.model.train()
         with tqdm(train_loader, disable=not self.cfg.batch_pbar) as pbar:
             for x in pbar:
+                pbar.set_description('Training Loop: ')
                 loss, batch_size = self.model_forward(x)
                 loss_iters += (loss.item() * batch_size)
                 samples_processed += batch_size
@@ -120,10 +121,12 @@ class Trainer(ABC):
         loss_iters = 0
         samples_processed = 0
         with tqdm(val_loader, disable=not self.cfg.batch_pbar) as pbar:
+            pbar.set_description('Validation Loop: ')
             for x in pbar:
                 loss, batch_size = self.model_forward(x)
                 loss_iters += (loss.item() * batch_size)
                 samples_processed += batch_size
+                pbar.set_postfix({'val_loss_step': f'{loss.item():.4f}'})
         self.val_loss.append(loss_iters / samples_processed)
         
         if self.last_val_loss < self.best_val_loss:
