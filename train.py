@@ -2,7 +2,7 @@ import sys
 import torch
 import random
 import numpy as np
-from utils import get_loader, Trainer
+from utils import get_loader, get_pyg_loader, Trainer
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
@@ -37,12 +37,23 @@ class BrainStateTrainer(Trainer):
         self.num_steps = cfg.model.kwargs.steps
         
     def model_forward(self, batch):
+        batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
-        return loss
+        return loss, x.shape[0]
+# class BrainStateTrainer(Trainer):
+    
+#     def __init__(self, cfg):
+#         super().__init__(cfg)
+        
+#     def model_forward(self, batch):
+#         batch = batch.to(self.cfg.device)
+#         y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr)
+#         loss = self.loss_fn(y_hat, batch.y)
+#         return loss, batch.num_graphs
 
 
 if __name__ == '__main__':
@@ -56,15 +67,31 @@ if __name__ == '__main__':
     train_loader = get_loader(
         data_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
+        batch_size=cfg.batch_size,
+        shuffle=cfg.data.train.shuffle,
         device=cfg.device
     )
     val_loader = get_loader(
         data_path=cfg.data.val.data_path,
         step=cfg.data.val.step,
+        batch_size=cfg.batch_size,
         shuffle=cfg.data.val.shuffle,
         device=cfg.device
     )
     
+    # train_loader = get_pyg_loader(
+    #     data_path=cfg.data.train.data_path,
+    #     threshold=cfg.data.train.threshold,
+    #     step=cfg.data.train.step,
+    # )
+
+    # val_loader = get_pyg_loader(
+    #     data_path=cfg.data.val.data_path,
+    #     threshold=cfg.data.val.threshold,
+    #     step=cfg.data.val.step,
+    #     shuffle=cfg.data.val.shuffle,
+    # )
+
     
     with tqdm(range(cfg.num_epochs)) as pbar:
         for final_model_epochs in pbar:
