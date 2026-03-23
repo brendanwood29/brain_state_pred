@@ -9,21 +9,21 @@ from .make_datasplits import split_single_subject
 from pathlib import Path
 
 
-def get_loader(data_path: str | Path, step: int, device: str, batch_size=64, shuffle=True, **kwargs):
+def get_loader(data_path: str | Path, step: int, batch_size=64, shuffle=True, **kwargs):
     
 
     return TorchDataLoader(
-        BrainFuncDataset(data_path, step, device),
+        BrainFuncDataset(data_path, step),
         batch_size=batch_size,
         shuffle=shuffle,
         **kwargs
     )
     
     
-def get_pyg_loader(data_path: str | Path, threshold: float, step: int, device: str, batch_size=64, shuffle=True, **kwargs):
+def get_pyg_loader(data_path: str | Path, threshold: float, step: int, batch_size=64, shuffle=True, **kwargs):
     
     return PyGDataLoader(
-        BrainFuncGCNDataset(data_path, threshold, step, device),
+        BrainFuncGCNDataset(data_path, threshold, step),
         batch_size=batch_size,
         shuffle=shuffle,
         **kwargs

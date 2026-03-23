@@ -68,15 +68,13 @@ if __name__ == '__main__':
         data_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
         batch_size=cfg.batch_size,
-        shuffle=cfg.data.train.shuffle,
-        device=cfg.device
+        shuffle=cfg.data.train.shuffle
     )
     val_loader = get_loader(
         data_path=cfg.data.val.data_path,
         step=cfg.data.val.step,
         batch_size=cfg.batch_size,
-        shuffle=cfg.data.val.shuffle,
-        device=cfg.device
+        shuffle=cfg.data.val.shuffle
     )
     
     # train_loader = get_pyg_loader(
