@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 
 
 class SingleSubjectBrainFuncDataset(TorchDataset):
-    def __init__(self, bold_data: str, step: int, device: str):
+    def __init__(self, bold_data: str, step: int):
         super().__init__()
         self.inputs = []
         self.outputs = []
@@ -16,10 +16,10 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
         for i in range(data_length):
             if (i + step) < data_length:
                 self.inputs.append(
-                    torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten().to(device)
+                    torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten()
                 )
                 self.outputs.append(
-                    torch.tensor(bold_data[i+step], dtype=torch.float).t().to(device)
+                    torch.tensor(bold_data[i+step], dtype=torch.float).t()
                 )
     
     def __len__(self):
@@ -31,7 +31,7 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
     
 class BrainFuncDataset(TorchDataset):
     
-    def __init__(self, split_path: str, step: int, device: str):
+    def __init__(self, split_path: str, step: int):
         super().__init__()
         
         self.inputs = []
@@ -46,10 +46,10 @@ class BrainFuncDataset(TorchDataset):
                 for i in range(data_length):
                     if (i + step) < data_length:
                         self.inputs.append(
-                            torch.tensor(bold_data[i:i+step], dtype=torch.float).t().flatten().to(device)
+                            torch.tensor(bold_data[i:i+step], dtype=torch.float).t().flatten()
                         )
                         self.outputs.append(
-                            torch.tensor(bold_data[i+step], dtype=torch.float).t().to(device)
+                            torch.tensor(bold_data[i+step], dtype=torch.float).t()
                         )
                 
             
