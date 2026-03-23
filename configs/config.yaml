@@ -1,9 +1,10 @@
-num_epochs: 50
-batch_size: 256
+num_epochs: 100
+batch_size: 2048
 device: cuda:0
 run_name: run_1
-work_dir: npi_result_all_data
+work_dir: npi_result_more-data-transformerlr
 seed: 42
+batch_pbar: true
 optim:
   name: adam
   lr: 1e-3
@@ -16,9 +17,16 @@ scheduler:
   name: cosine
   kwargs:
     max_lr: ${optim.lr}
-    total_steps: 211800
+    total_steps: 16100
     pct_start: 0.1
 model: 
+  # name: gcn
+  # print_summary: true
+  # num_models_to_save: 4
+  # init: null
+  # kwargs:
+  #   num_features: 10
+  #   hidden_dim: 512
   name: transformer
   print_summary: true
   num_models_to_save: 4
@@ -27,7 +35,7 @@ model:
     in_features: 360
     num_heads: 12
     steps: 3
-    num_blocks: 5
+    num_blocks: 10
     # input_dim: 1080
     # hidden_dim: 720
     # latent_dim: 288
@@ -40,7 +48,10 @@ data:
   train:
     data_path: splits/train.json
     step: ${model.kwargs.steps}
+    shuffle: true
+    # threshold: 0.1
   val:
     data_path: splits/val.json
     step: ${data.train.step}
     shuffle: false
+    # threshold: 0.1
