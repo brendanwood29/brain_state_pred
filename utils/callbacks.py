@@ -1,6 +1,6 @@
 class EarlyStopping():
 
-  def __init__(self, patience: int, use: bool = True, threshold: float 0.001) -> None:
+  def __init__(self, patience: int, use: bool = True, threshold: float = 0.001) -> None:
     self.patience = patience
     self.best_loss = None
     self.not_better_count = 0
