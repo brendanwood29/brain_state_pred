@@ -79,7 +79,7 @@ class Trainer(ABC):
             self.work_dir.joinpath('config.yaml')
         )
     
-    def __call__(self, train_loader, test_loader):
+    def __call__(self, train_loader, val_loader):
         
         with tqdm(range(self.cfg.num_epochs)) as pbar:
             for final_model_epochs in pbar:
@@ -93,7 +93,7 @@ class Trainer(ABC):
                     refresh=False
                 )
                 with torch.no_grad():
-                    should_stop = self.val(test_loader)
+                    should_stop = self.val(val_loader)
                 if should_stop:
                     print(f'Stopped after {self.current_epoch} epochs due to early stopping.')
                     break
