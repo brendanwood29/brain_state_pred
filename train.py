@@ -41,6 +41,7 @@ class BrainStateTrainer(Trainer):
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
+        y = y.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, x.shape[0]
@@ -55,10 +56,8 @@ class BrainStateTrainer(Trainer):
 #         loss = self.loss_fn(y_hat, batch.y)
 #         return loss, batch.num_graphs
 
-
-if __name__ == '__main__':
+def main(cfg: ListConfig | DictConfig):
     
-    cfg = get_config()
     if cfg.seed is not None:
         fix_seeds(42)
     
@@ -102,13 +101,18 @@ if __name__ == '__main__':
                 refresh=False
             )
             with torch.no_grad():
-                should_stop = trainer.val(val_loader)
+                should_stop = trainer.val(val_loader, final_model_epochs)
             if should_stop:
                 print(f'Stopped after {final_model_epochs} epochs due to early stopping.')
                 break        
-    trainer.training_summary(final_model_epochs, save_final=True)
+    trainer.training_summary(final_model_epochs, save_final=cfg.model.save_last)
         
         
+if __name__ == '__main__':
+    
+    cfg = get_config()
+    main(cfg)
+
         
         
 

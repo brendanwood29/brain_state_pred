@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.loader import DataLoader as PyGDataLoader
-from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject, SingleSubjectBrainFuncGCNDataset
+from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject, SingleSubjectBrainFuncGCNDataset, SingleSubjectBrainFuncSTGCNDataset
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
@@ -46,6 +46,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
+        y = y.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
@@ -54,37 +55,43 @@ class SingleSubjectBrainStateTrainer(Trainer):
     
     # def model_forward(self, batch):
     #     batch = batch.to(self.cfg.device)
-    #     y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr)
+    #     y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr.unsqueeze(-1), batch.batch)
     #     loss = self.loss_fn(y_hat, batch.y)
     #     return loss, batch.num_graphs
 
     # def model_forward(self, batch):
     #     batch = [x.to(self.cfg.device) for x in batch]
     #     x, y, idx, weights = batch
-    #     y_hat = self.model(x,  idx.squeeze(0), weights.squeeze(0))
+    #     y_hat = self.model(x, idx[0, ...], weights[0, ...])
     #     loss = self.loss_fn(y_hat, y)
-    #     return loss
+    #     return loss, x.shape[0]
 
-if __name__ == '__main__':
+
+def main(cfg):
     
-    cfg = get_config()
     if cfg.seed is not None:
         fix_seeds(42)
     
 
-    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/sub-141826_ses-3T_task-rest_acq-lr_space-MNIICBM152*timeseries.csv'))
+    # input_csv_list = list(Path('data_like-npi/hcp').rglob('**/sub-141826_ses-3T_task-rest_acq-lr_space-MNIICBM152*timeseries.csv'))
+    with open('train_csvs.txt', 'r') as f:
+        input_csv_list = f.readlines()
+    input_csv_list = [Path(x.removesuffix('\n')) for x in input_csv_list]
+    
+    config = f'_{cfg.run_name}'
     
     for subject in tqdm(input_csv_list):
-        cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
+        cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv') + config
         trainer = SingleSubjectBrainStateTrainer(cfg)
         train_data, test_data = split_single_subject(subject, cfg.data.train_proportion)
         fc = pd.read_csv(subject.with_name(subject.name.replace('cleaned-timeseries', 'connectome')), index_col=0).to_numpy()
         
-        ## single subject brain func
+        # single subject brain func
         train_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
                 train_data,
                 cfg.data.train.step,
+                strength=cfg.data.strength
             ),
             batch_size=cfg.batch_size,
             shuffle=True
@@ -93,10 +100,33 @@ if __name__ == '__main__':
             SingleSubjectBrainFuncDataset(
                 test_data,
                 cfg.data.test.step,
+                strength=cfg.data.strength
             ),
             batch_size=cfg.batch_size,
             shuffle=False
         )
+        
+        ## single subject stcgn
+        # train_loader = TorchDataLoader(
+        #     SingleSubjectBrainFuncSTGCNDataset(
+        #         train_data,
+        #         fc,
+        #         cfg.data.train.threshold,
+        #         cfg.data.train.step,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=True
+        # )
+        # test_loader = TorchDataLoader(
+        #     SingleSubjectBrainFuncSTGCNDataset(
+        #         test_data,
+        #         fc,
+        #         cfg.data.train.threshold,
+        #         cfg.data.test.step,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=False
+        # )
         
         # single subject gcn
         # train_loader = PyGDataLoader(
@@ -135,12 +165,18 @@ if __name__ == '__main__':
                     refresh=False
                 )
                 with torch.no_grad():
-                    should_stop = trainer.val(test_loader)
+                    should_stop = trainer.val(test_loader, final_model_epochs)
                 if should_stop:
                     print(f'Stopped after {final_model_epochs} epochs due to early stopping.')
-                    break        
+                    break
         trainer.training_summary(final_model_epochs, save_final=True)
             
             
             
             
+
+
+if __name__ == '__main__':
+    
+    cfg = get_config()
+    main(cfg)
