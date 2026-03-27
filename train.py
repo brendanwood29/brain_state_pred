@@ -90,23 +90,7 @@ def main(cfg: ListConfig | DictConfig):
     # )
 
     
-    with tqdm(range(cfg.num_epochs)) as pbar:
-        for final_model_epochs in pbar:
-            trainer.train(train_loader)
-            pbar.set_postfix(
-                {
-                    "train_loss": f"{trainer.loss_epoch[-1]:.4f}", 
-                    "val_loss": f"{trainer.last_val_loss:.4f}"
-                }, 
-                refresh=False
-            )
-            with torch.no_grad():
-                should_stop = trainer.val(val_loader, final_model_epochs)
-            if should_stop:
-                print(f'Stopped after {final_model_epochs} epochs due to early stopping.')
-                break        
-    trainer.training_summary(final_model_epochs, save_final=cfg.model.save_last)
-        
+    trainer(train_loader, val_loader)
         
 if __name__ == '__main__':
     
