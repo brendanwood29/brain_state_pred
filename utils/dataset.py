@@ -8,25 +8,29 @@ from torch_geometric.data import Data
 
 
 class SingleSubjectBrainFuncDataset(TorchDataset):
-    def __init__(self, bold_data: str, step: int):
+    def __init__(self, bold_data: str, step: int, strength: float = 0.1):
         super().__init__()
         self.inputs = []
         self.outputs = []
+        self.strength = strength
         data_length = bold_data.shape[0]
         for i in range(data_length):
-            if (i + step) < data_length:
+            if (i + step + 1) < data_length:
                 self.inputs.append(
                     torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten()
                 )
                 self.outputs.append(
-                    torch.tensor(bold_data[i+step], dtype=torch.float).t()
+                    torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
+                    # torch.tensor(bold_data[i+step], dtype=torch.float).t()
                 )
     
     def __len__(self):
         return len(self.inputs)
     
     def __getitem__(self, idx):
-        return self.inputs[idx], self.outputs[idx]
+        inp = self.inputs[idx]
+        out = self.outputs[idx]
+        return inp + self.strength * torch.randn_like(inp), out + self.strength * torch.randn_like(out)
     
     
 class BrainFuncDataset(TorchDataset):
@@ -44,12 +48,12 @@ class BrainFuncDataset(TorchDataset):
                 bold_data = pd.read_csv(data[subject][ses]['file_path'], index_col=0).to_numpy()
                 data_length = bold_data.shape[0]
                 for i in range(data_length):
-                    if (i + step) < data_length:
+                    if (i + step + 1) < data_length:
                         self.inputs.append(
-                            torch.tensor(bold_data[i:i+step], dtype=torch.float).t().flatten()
+                            torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten()
                         )
                         self.outputs.append(
-                            torch.tensor(bold_data[i+step], dtype=torch.float).t()
+                            torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
                         )
                 
             
