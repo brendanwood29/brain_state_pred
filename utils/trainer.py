@@ -79,6 +79,27 @@ class Trainer(ABC):
             self.work_dir.joinpath('config.yaml')
         )
     
+    def __call__(self, train_loader, test_loader):
+        
+        with tqdm(range(self.cfg.num_epochs)) as pbar:
+            for final_model_epochs in pbar:
+                self.current_epoch = final_model_epochs
+                self.train(train_loader)
+                pbar.set_postfix(
+                    {
+                        "train_loss": f"{self.loss_epoch[-1]:.4f}", 
+                        "val_loss": f"{self.last_val_loss:.4f}"
+                    }, 
+                    refresh=False
+                )
+                with torch.no_grad():
+                    should_stop = self.val(test_loader)
+                if should_stop:
+                    print(f'Stopped after {self.current_epoch} epochs due to early stopping.')
+                    break
+        self.training_summary(self.current_epoch, save_final=self.cfg.model.save_last)
+    
+    
     @abstractmethod
     def model_forward(self, batch):
         """Abstract method for a forward pass of a model
@@ -90,9 +111,15 @@ class Trainer(ABC):
         """
         pass
     
+    
+    def clip_grad_norm(self):
+        torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=self.cfg.grad_clip.max_norm)
+    
     def after_train_batch(self, loss):
         self.optimizer.zero_grad()
         loss.backward()
+        if self.cfg.grad_clip is not None:
+            self.clip_grad_norm()
         self.optimizer.step()
         if self.scheduler is not None:
             self.scheduler.step()
@@ -146,7 +173,7 @@ class Trainer(ABC):
         
         model_name = self.save_model()
         
-        self.top_saved_models.append([self.best_val_loss, model_name])
+        self.top_saved_models.append([self.last_val_loss, model_name])
         self.top_saved_models.sort(key=lambda x: x[0])
         if len(self.top_saved_models) > self.num_models_save:
             _, worst_path = self.top_saved_models.pop()
@@ -177,7 +204,7 @@ class Trainer(ABC):
         if self.scheduler is not None:
             params['scheduler_state'] = self.scheduler.state_dict()
         if model_name is None:
-            model_name = f'{self.run_name}_best_val_loss_{self.last_val_loss:.4f}.pt'
+            model_name = f'{self.run_name}-epoch-{self.current_epoch}_best_val_loss_{self.last_val_loss:.4f}.pt'
         model_name = out_dir.joinpath(model_name)
         torch.save(params, model_name)
         
@@ -212,7 +239,7 @@ class Trainer(ABC):
     
     def training_summary(self, final_epochs: int, save_final: bool):
         if save_final:
-            self.save_model('final_model.pt')
+            self.save_model(model_name='final_model.pt')
         
         fig_dir = self.work_dir.joinpath('figures')
         fig_dir.mkdir(parents=True, exist_ok=True)
