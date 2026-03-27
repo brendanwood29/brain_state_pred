@@ -103,6 +103,7 @@ class MultiHeadSelfAttention(nn.Module):
         num_heads,
         steps: int = 3,
         use_lora: bool = False,
+        masked_attn: bool = False,
         attn_drop_prob: float = 0.1,
         final_drop_prob: float = 0.1,
         **kwargs
@@ -111,13 +112,14 @@ class MultiHeadSelfAttention(nn.Module):
         
         self.use_lora = use_lora
         self.num_heads = num_heads
+        self.masked_attn = masked_attn
         self.factor = ((in_features // self.num_heads) ** -0.5)
         self.qkv_proj = nn.Linear(in_features, 3 * in_features, bias=True)
         self.final_proj = nn.Linear(in_features, in_features, bias=True)
         self.attn_drop = nn.Dropout(attn_drop_prob)
         self.final_drop = nn.Dropout(final_drop_prob)
-        self.pos_embed = RotaryPositionalEmbedding(in_features // num_heads, 1, steps)
-        
+        self.pos_embed = nn.Embedding(steps, in_features)
+        self.pos = torch.arange(0, steps)
         if self.use_lora:
             self.lora = LoRA(
                 in_dim=in_features,
@@ -134,19 +136,18 @@ class MultiHeadSelfAttention(nn.Module):
     def forward(self, x):
         
         B, N, C = x.shape
+        x = self.pos_embed(self.pos.to(x.device)).unsqueeze(0).to(x.device) + x
         qkv = self.qkv_proj(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         if self.use_lora:
             lora_qv = self.lora(x).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
             q, k, v = qkv[0] + lora_qv[0], qkv[1], qkv[2] + lora_qv[1]
         else:
             q, k, v = qkv[0], qkv[1], qkv[2]
-            
-        q = self.pos_embed(q)
-        k = self.pos_embed(k)
-        
+
         attn = q @ k.transpose(-2, -1)
         attn *= self.factor
-        attn = attn.masked_fill(self.mask, -torch.inf)
+        if self.masked_attn:
+            attn = attn.masked_fill(self.mask, -torch.inf)
         attn = attn.softmax(dim=-1)
         attn_drop = self.attn_drop(attn)
         
@@ -191,13 +192,13 @@ class MultiHeadCrossAttention(nn.Module):
             2, 
             self.num_heads, 
             C // self.num_heads
-        ).permute(2, 0, 3, 1, 4) # kv-dim, B, N, Num heads, head dim
+        ).permute(2, 0, 3, 1, 4) 
         
         k, v = kv[0], kv[1]
         attn = q @ k.transpose(-2, -1)
         attn *= self.factor
         attn = attn.softmax(dim=-1)
-        attn_drop = nn.Identity()(attn)
+        attn_drop = nn.Identity()(attn) #FIXME make acutal dropout
         
         out = (attn_drop @ v).transpose(1, 2).reshape(B, 1, C)
         out = self.final_drop(out)
@@ -215,14 +216,11 @@ class FFN(nn.Module):
         
         self.last_layer = last_layer
         self.layer1 = nn.Linear(in_features, in_features)
-        self.layer2 = nn.Linear(in_features, in_features)
-        self.activation = nn.GELU()
+        self.activation = nn.ReLU()
     
     def forward(self, x):
         
         x = self.layer1(x)
-        x = self.activation(x)
-        x = self.layer2(x)
         if not self.last_layer:
             x = self.activation(x)
         
@@ -283,8 +281,7 @@ class TransformerModel(nn.Module):
         """
         
         x = self.model(x)
-        
-        return x[:, -1, :]
+        return x
     
 if __name__ == "__main__":
     
