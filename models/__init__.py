@@ -1,7 +1,7 @@
 from .mlp import MLP, ANN_MLP
 from .lstm import LSTM
 from .transformer_based import TransformerModel
-from .graph_based import GCN, STGCN
+from .graph_based import GCN, STGCN, GCTN
 
 def get_model(name: str, **kwargs):
         
@@ -10,8 +10,9 @@ def get_model(name: str, **kwargs):
         'npi_mlp',
         'transformer',
         'gcn',
-        'stcgn',
-        'lstm'
+        'stgcn',
+        'lstm',
+        'gctn'
     ]
     
     if name not in configured_models:
@@ -39,6 +40,10 @@ def get_model(name: str, **kwargs):
         )
     elif name == 'lstm':
         return LSTM(
+            **kwargs
+        )
+    elif name == 'gctn':
+        return GCTN(
             **kwargs
         )
         
