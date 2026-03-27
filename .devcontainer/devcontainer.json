@@ -20,10 +20,15 @@
 			]
 		}
 	},
+  	"features": {
+		"ghcr.io/duduribeiro/devcontainer-features/tmux:1": {
+			"version": "latest"
+		}
+  	},
 	"workspaceMount": "source=${localWorkspaceFolder},target=/data5/projects/bwood/classes/brain_state_pred/,type=bind",
 	"workspaceFolder": "/data5/projects/bwood/classes/brain_state_pred/",
 	"postCreateCommand": "curl -LsSf https://astral.sh/uv/install.sh | sh",
-	"runArgs": ["--gpus=all", "--shm-size=256G"]
+	"runArgs": ["--gpus=all", "--memory=256G", "--memory-swap=8G", "--shm-size=256G"]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
