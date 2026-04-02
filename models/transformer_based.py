@@ -70,7 +70,8 @@ class LoRA(nn.Module):
         out_dim,
         alpha,
         use_bias: bool = False,
-        activation: Callable = nn.GELU
+        activation: Callable = nn.GELU,
+        **kwargs
     ):
         super().__init__()
         
@@ -210,12 +211,14 @@ class FFN(nn.Module):
     def __init__(
         self,
         in_features: int,
-        last_layer: bool = False
+        ffn_dropout: float,
+        last_layer: bool = False,
     ):
         super().__init__()
         
         self.last_layer = last_layer
         self.layer1 = nn.Linear(in_features, in_features)
+        self.dropout = nn.Dropout(ffn_dropout)
         self.activation = nn.ReLU()
     
     def forward(self, x):
@@ -223,6 +226,7 @@ class FFN(nn.Module):
         x = self.layer1(x)
         if not self.last_layer:
             x = self.activation(x)
+            x = self.dropout(x)
         
         return x
 
@@ -240,7 +244,7 @@ class Block(nn.Module):
         super().__init__()
         self.layer_norm1 = nn.LayerNorm((steps, in_features))
         self.attn = MultiHeadSelfAttention(in_features, num_heads, steps, **kwargs)
-        self.ffn = FFN(in_features, last_layer=last_layer)
+        self.ffn = FFN(in_features, ffn_dropout=kwargs['ffn_dropout'], last_layer=last_layer)
         self.layer_norm2 = nn.LayerNorm((steps, in_features))
     
     def forward(self, x):
