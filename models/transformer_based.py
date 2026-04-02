@@ -251,9 +251,42 @@ class Block(nn.Module):
         """
             x must have shape (Batch, Num timepoints, Num Regions)
         """
-        
         x = self.layer_norm1(x)
-        x = x + self.attn(x)
+        x = self.attn(x)
+        x = self.layer_norm2(x)
+        x = x + self.ffn(x)
+        
+        return x
+
+
+class ST_Block(nn.Module):
+    
+    def __init__(
+        self,
+        in_features: int,
+        num_heads: int,
+        steps: int,
+        last_layer: bool = False,
+        **kwargs
+    ):
+        super().__init__()
+        self.layer_norm1 = nn.LayerNorm((steps, in_features))
+        self.attn_s = MultiHeadSelfAttention(in_features, num_heads, steps, **kwargs)
+        self.attn_weights = nn.Parameter(torch.ones(2))
+        self.attn_t = MultiHeadSelfAttention(steps, num_heads, in_features, **kwargs)
+        self.ffn = FFN(in_features, ffn_dropout=kwargs['ffn_dropout'], last_layer=last_layer)
+        self.layer_norm2 = nn.LayerNorm((steps, in_features))
+    
+    def forward(self, x):
+        """
+            x must have shape (Batch, Num timepoints, Num Regions)
+        """
+        soft_weights = torch.softmax(self.attn_weights, dim=0)
+        x = self.layer_norm1(x)
+        x_s = x + self.attn_s(x)
+        x_t = x + self.attn_t(x.permute(0, 2, 1)).permute(0, 2, 1) 
+        x = (soft_weights[0] * x_s) + (soft_weights[1] * x_t)
+        # x = x + (self.attn_s(x) * soft_weights[0]) + (self.attn_t(x.permute(0, 2, 1)).permute(0, 2, 1) * soft_weights[1])
         x = self.layer_norm2(x)
         x = x + self.ffn(x)
         
