@@ -30,14 +30,17 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
     def __getitem__(self, idx):
         inp = self.inputs[idx]
         out = self.outputs[idx]
-        return inp + self.strength * torch.randn_like(inp), out + self.strength * torch.randn_like(out)
+        # inp_noise = self.strength * torch.randn_like(inp)
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+        return inp + inp_noise, out
     
     
 class BrainFuncDataset(TorchDataset):
     
-    def __init__(self, split_path: str, step: int):
+    def __init__(self, split_path: str, step: int, strength: float):
         super().__init__()
         
+        self.strength = strength
         self.inputs = []
         self.outputs = []
         with open(split_path, 'r') as f:
@@ -61,7 +64,10 @@ class BrainFuncDataset(TorchDataset):
         return len(self.inputs)
     
     def __getitem__(self, idx):
-        return self.inputs[idx], self.outputs[idx]
+        inp = self.inputs[idx]
+        out = self.outputs[idx]
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+        return inp + inp_noise, out
         
         
 class BrainFuncGCNDataset(PyGDataset):
