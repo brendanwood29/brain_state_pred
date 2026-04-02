@@ -1,71 +1,97 @@
-num_epochs: 1000
-batch_size: 128
+num_epochs: 500
+batch_size: 256
 device: cuda:0
 run_name: run_1
-work_dir: npi_result_lstm_test
+work_dir: results/testing2
 seed: 42
 # batch_pbar: true
 optim:
   name: adam
-  lr: 1e-5
+  lr: 5e-4
   kwargs:
     weight_decay: 5e-5
 loss:
-  name: mse_loss
-scheduler: null
-# scheduler:   
-#   name: cosine
-#   kwargs:
-#     max_lr: ${optim.lr}
-#     total_steps: 1600
-#     pct_start: 0.1
+  name: mse_fc_loss
+  kwargs:
+    mse_weight: 1.0
+    fc_weight: 0.5
+grad_clip:
+  max_norm: 1.0
+# scheduler: null
+scheduler:   
+  name: cosine
+  kwargs:
+    max_lr: ${optim.lr}
+    total_steps: 2000
+    pct_start: 0.1
 model: 
-  name: lstm
+  name: transformer
   print_summary: true
-  num_models_to_save: 4
+  num_models_to_save: 3
+  save_last: true
   # freeze_modules:
   #   - model
   # unfreeze_modules:
   #   - lora
   #   - norm
   init: null
-    # weights: npi_result_more-data-transformer/run_1/models/run_1_best_val_loss_0.1445.pt
+    # weights: results/final_results/transformer_all/run_2/models/final_model.pt
     # weights_only: true
     # strict: false
-  kwargs: 
-    input_size: 360
-    hidden_size: 128
-    num_layers: 1
-    steps: 15
+  # kwargs: 
+  #   input_size: 360
+  #   hidden_size: 128
+  #   num_layers: 1
+  #   steps: 15
     # proj_size: 360
 ########## GCN
   # kwargs: 
-  #   num_features: 4
+  #   num_features: 20
   #   hidden_dim: 128
-########## Transformer with lora
+######### GCTN
   # kwargs:
-  #   in_features: 360
-  #   num_heads: 12
-  #   steps: 3
-  #   num_blocks: 10
-  #   use_lora: true
-  #   alpha: 4
-  #   r: 4
+  #   in_channels: 20
+  #   out_channels: 1
+  #   heads: 12
+  #   dropout: 0.0
+########## STGCN
+  # kwargs:
+  #   num_nodes: 360
+  #   in_features: 1
+  #   hidden_dim: 10
+  #   out_features: 1
+########## Transformer with lora
+  kwargs:
+    in_features: 360
+    num_heads: 2
+    steps: 20
+    num_blocks: 2
+    masked_attn: false
+    attn_drop_prob: 0.2
+    final_drop_prob: 0.2
+    ffn_dropout: 0.2
+    # use_lora: true
+    # alpha: 64
+    # r: 64
 ########## NPI MLP
-    # input_dim: 1080
-    # hidden_dim: 720
-    # latent_dim: 288
-    # output_dim: 360
-    # device: ${device}
+  # kwargs:
+  #   input_dim: 1080
+  #   hidden_dim: 720
+  #   latent_dim: 288
+  #   output_dim: 360
+  #   steps: 3
+  #   device: ${device}
 callbacks:
   use_early_stopping: false
   patience: 5
+  threshold: 0.0001
 data:
   train_proportion: 0.8
+  strength: 0.2
   train: 
     step: ${model.kwargs.steps}
-    threshold: 0.95
+    # threshold: 0.8
   test:
     step: ${data.train.step}
     shuffle: false
-    threshold: 0.95
+    # threshold: 0.8
