@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-TRAIN_SPLIT = 0.8
+TRAIN_SPLIT = 0.7
+VAL_SPLIT = 0.1
 TRAIN_SETS = [
     'hcp'
 ]
@@ -11,7 +12,23 @@ VAL_SETS = [
     'hcp'
 ]
 TEST_SETS = [
+    'hcp'
 ]
+
+def split_train_val_test(subjects):
+    subjects = np.array(subjects)
+
+    rng = np.random.default_rng(42)
+    indices = rng.permutation(len(subjects))
+
+    tr_split = int(len(subjects) * TRAIN_SPLIT)
+    val_split = int(len(subjects) * VAL_SPLIT) + tr_split
+    train_idx = indices[:tr_split]
+    val_idx = indices[tr_split:val_split]
+    test_idx = indices[val_split:]
+
+    return subjects[train_idx], subjects[val_idx], subjects[test_idx]
+
 
 def split_train_val(subjects):
     subjects = np.array(subjects)
@@ -37,12 +54,17 @@ def split_by_subjects(data_dir, splits):
         with open(dataset, 'r') as f:
             data = json.load(f)
         
-        if name in TRAIN_SETS and name in TEST_SETS:
-            raise ValueError(f'{name} in train and test sets')
-        if name in VAL_SETS and name in TEST_SETS:
-            raise ValueError(f'{name} in val and test sets')
+        # if name in TRAIN_SETS and name in TEST_SETS:
+        #     raise ValueError(f'{name} in train and test sets')
+        # if name in VAL_SETS and name in TEST_SETS:
+        #     raise ValueError(f'{name} in val and test sets')
         
-        if name in TRAIN_SETS and name in VAL_SETS:
+        if name in TRAIN_SETS and name in VAL_SETS and name in TEST_SETS:
+            train_subs, val_subs, test_subs = split_train_val_test(list(data.keys()))
+            train.update((sub, data[sub]) for sub in train_subs)
+            val.update((sub, data[sub]) for sub in val_subs)
+            test.update((sub, data[sub]) for sub in test_subs)
+        elif name in TRAIN_SETS and name in VAL_SETS:
             train_subs, val_subs = split_train_val(list(data.keys()))
             train.update((sub, data[sub]) for sub in train_subs)
             val.update((sub, data[sub]) for sub in val_subs)
