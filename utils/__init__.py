@@ -9,11 +9,11 @@ from .make_datasplits import split_single_subject
 from pathlib import Path
 
 
-def get_loader(data_path: str | Path, step: int, batch_size=64, shuffle=True, **kwargs):
+def get_loader(data_path: str | Path, step: int, strength: float, batch_size=64, shuffle=True, **kwargs):
     
 
     return TorchDataLoader(
-        BrainFuncDataset(data_path, step),
+        BrainFuncDataset(data_path, step, strength),
         batch_size=batch_size,
         shuffle=shuffle,
         **kwargs
