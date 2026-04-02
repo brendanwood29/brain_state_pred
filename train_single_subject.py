@@ -1,3 +1,4 @@
+import json
 import sys
 import torch
 import random
@@ -41,7 +42,18 @@ class SingleSubjectBrainStateTrainer(Trainer):
         super().__init__(cfg)
         self.num_steps = cfg.model.kwargs.steps
     
+    # def model_forward(self, batch):
+    #     """ NPI MLP Model Forward"""
+    #     batch = [x.to(self.cfg.device) for x in batch]
+    #     x, y = batch
+    #     B, N = x.shape
+    #     y_hat = self.model(x)
+    #     loss = self.loss_fn(y_hat, y)
+    #     return loss, B
+    
+    
     def model_forward(self, batch):
+        """ Transformer Model Forward """
         batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
@@ -52,14 +64,15 @@ class SingleSubjectBrainStateTrainer(Trainer):
         return loss, B
 
     
-    
     # def model_forward(self, batch):
+        # """GCN Model Forward"""
     #     batch = batch.to(self.cfg.device)
     #     y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr.unsqueeze(-1), batch.batch)
     #     loss = self.loss_fn(y_hat, batch.y)
     #     return loss, batch.num_graphs
 
     # def model_forward(self, batch):
+        # """STGCN Model Forward"""
     #     batch = [x.to(self.cfg.device) for x in batch]
     #     x, y, idx, weights = batch
     #     y_hat = self.model(x, idx[0, ...], weights[0, ...])
@@ -72,17 +85,21 @@ def main(cfg):
     if cfg.seed is not None:
         fix_seeds(42)
     
+    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
 
-    # input_csv_list = list(Path('data_like-npi/hcp').rglob('**/sub-141826_ses-3T_task-rest_acq-lr_space-MNIICBM152*timeseries.csv'))
-    with open('train_csvs.txt', 'r') as f:
-        input_csv_list = f.readlines()
-    input_csv_list = [Path(x.removesuffix('\n')) for x in input_csv_list]
-    
-    config = f'_{cfg.run_name}'
+    # Uncomment below to allow for fine tuning on only testing subjects
+    # with open('splits/test.json', 'r') as f:
+    #     data = json.load(f)
+    # input_csv_list = [Path(data[sub]['ses-3T']['file_path']) for sub in data]
     
     for subject in tqdm(input_csv_list):
-        cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv') + config
+        cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
         trainer = SingleSubjectBrainStateTrainer(cfg)
+        
+        if len(list(trainer.work_dir.rglob('final_model.pt'))) > 0:
+            print('Subject is fininshed, continue...')
+            continue
+        
         train_data, test_data = split_single_subject(subject, cfg.data.train_proportion)
         fc = pd.read_csv(subject.with_name(subject.name.replace('cleaned-timeseries', 'connectome')), index_col=0).to_numpy()
         
@@ -100,7 +117,7 @@ def main(cfg):
             SingleSubjectBrainFuncDataset(
                 test_data,
                 cfg.data.test.step,
-                strength=cfg.data.strength
+                strength=0.0
             ),
             batch_size=cfg.batch_size,
             shuffle=False
@@ -152,15 +169,9 @@ def main(cfg):
         #     shuffle=False
         # )
         
-        
-        
         trainer(train_loader=train_loader, val_loader=test_loader)
             
             
-            
-            
-
-
 if __name__ == '__main__':
     
     cfg = get_config()
