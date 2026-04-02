@@ -37,6 +37,7 @@ class BrainStateTrainer(Trainer):
         self.num_steps = cfg.model.kwargs.steps
         
     def model_forward(self, batch):
+        """ Model forward for the transformer based architecture"""
         batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
@@ -51,6 +52,7 @@ class BrainStateTrainer(Trainer):
 #         super().__init__(cfg)
         
 #     def model_forward(self, batch):
+        # """ Model forward for the graph based architecture"""
 #         batch = batch.to(self.cfg.device)
 #         y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr)
 #         loss = self.loss_fn(y_hat, batch.y)
@@ -66,16 +68,19 @@ def main(cfg: ListConfig | DictConfig):
     train_loader = get_loader(
         data_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
+        strength=cfg.data.strength,
         batch_size=cfg.batch_size,
         shuffle=cfg.data.train.shuffle
     )
     val_loader = get_loader(
         data_path=cfg.data.val.data_path,
         step=cfg.data.val.step,
+        strength=0.0,
         batch_size=cfg.batch_size,
         shuffle=cfg.data.val.shuffle
     )
     
+    # Uncomment below to allow for graph based training
     # train_loader = get_pyg_loader(
     #     data_path=cfg.data.train.data_path,
     #     threshold=cfg.data.train.threshold,
