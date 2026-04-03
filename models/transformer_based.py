@@ -61,6 +61,21 @@ class RotaryPositionalEmbedding(nn.Module):
         return torch.cat([first_part, second_part], dim=-1)
 
 
+class TrainablePositionEmbedding(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        steps: int
+    ):
+        super().__init__()
+        self.pos_embed = nn.Embedding(steps, in_features)
+        self.pos = torch.arange(0, steps)
+
+    def forward(self, x):
+        return x + self.pos_embed(self.pos.to(x.device)).unsqueeze(0).to(x.device)
+        
+        
+
 class LoRA(nn.Module):
     
     def __init__(
@@ -119,8 +134,6 @@ class MultiHeadSelfAttention(nn.Module):
         self.final_proj = nn.Linear(in_features, in_features, bias=True)
         self.attn_drop = nn.Dropout(attn_drop_prob)
         self.final_drop = nn.Dropout(final_drop_prob)
-        self.pos_embed = nn.Embedding(steps, in_features)
-        self.pos = torch.arange(0, steps)
         if self.use_lora:
             self.lora = LoRA(
                 in_dim=in_features,
@@ -137,7 +150,6 @@ class MultiHeadSelfAttention(nn.Module):
     def forward(self, x):
         
         B, N, C = x.shape
-        x = self.pos_embed(self.pos.to(x.device)).unsqueeze(0).to(x.device) + x
         qkv = self.qkv_proj(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         if self.use_lora:
             lora_qv = self.lora(x).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
@@ -177,23 +189,11 @@ class MultiHeadCrossAttention(nn.Module):
         self.final_drop = nn.Dropout(final_drop_prob)
         
     
-    def forward(self, x):
+    def forward(self, x, y):
         
         B, N, C = x.shape
-        q, kv = x[:, 0, :], x[:, 1:, :]
-        q = self.q_proj(q).reshape(
-            B, 
-            1, 
-            self.num_heads, 
-            C // self.num_heads
-        ).permute(0, 2, 1, 3)
-        kv = self.kv_proj(kv).reshape(
-            B, 
-            N - 1, 
-            2, 
-            self.num_heads, 
-            C // self.num_heads
-        ).permute(2, 0, 3, 1, 4) 
+        q = self.q_proj(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
+        kv = self.kv_proj(y).reshape(B, N, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4) 
         
         k, v = kv[0], kv[1]
         attn = q @ k.transpose(-2, -1)
@@ -252,7 +252,7 @@ class Block(nn.Module):
             x must have shape (Batch, Num timepoints, Num Regions)
         """
         x = self.layer_norm1(x)
-        x = self.attn(x)
+        x = x + self.attn(x)
         x = self.layer_norm2(x)
         x = x + self.ffn(x)
         
@@ -274,6 +274,7 @@ class ST_Block(nn.Module):
         self.attn_s = MultiHeadSelfAttention(in_features, num_heads, steps, **kwargs)
         self.attn_weights = nn.Parameter(torch.ones(2))
         self.attn_t = MultiHeadSelfAttention(steps, num_heads, in_features, **kwargs)
+        self.cross_attn = MultiHeadCrossAttention(in_features, num_heads, **kwargs)
         self.ffn = FFN(in_features, ffn_dropout=kwargs['ffn_dropout'], last_layer=last_layer)
         self.layer_norm2 = nn.LayerNorm((steps, in_features))
     
@@ -306,6 +307,7 @@ class TransformerModel(nn.Module):
     ) -> None:
         super().__init__()
         
+        self.pos_embed = TrainablePositionEmbedding(in_features, steps)
         self.mod_list = [
             Block(in_features, num_heads, steps, i == (num_blocks - 1), **kwargs) for i in range(num_blocks)
         ]
@@ -316,7 +318,7 @@ class TransformerModel(nn.Module):
         """
             x must have shape (Batch, Num timepoints, Num Regions)
         """
-        
+        x = self.pos_embed(x)
         x = self.model(x)
         return x
     
