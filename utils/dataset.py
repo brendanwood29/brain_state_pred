@@ -8,7 +8,7 @@ from torch_geometric.data import Data
 
 
 class SingleSubjectBrainFuncDataset(TorchDataset):
-    def __init__(self, bold_data: str, step: int, strength: float = 0.1):
+    def __init__(self, bold_data: np.array, step: int, strength: float = 0.1):
         super().__init__()
         self.inputs = []
         self.outputs = []
@@ -20,7 +20,8 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
                     torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten()
                 )
                 self.outputs.append(
-                    torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
+                    # torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
+                    torch.tensor(bold_data[i+step], dtype=torch.float).flatten()
                     # torch.tensor(bold_data[i+step], dtype=torch.float).t()
                 )
     
