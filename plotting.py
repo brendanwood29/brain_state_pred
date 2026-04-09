@@ -5,11 +5,11 @@ import pandas as pd
 from pathlib import Path
 import matplotlib.cm as cm
 import matplotlib.colors as mcolors
-
+import matplotlib as mpl
 
 def plot_fcs(fcs, names, neworder, save_path):
     
-    fig, axes = plt.subplots(2, 2, figsize = (16, 16))
+    fig, axes = plt.subplots(2, 2, figsize = (25 ,25))
     axes = axes.flatten()
     
     for i, (ax, fc, name) in enumerate(zip(axes, fcs, names)):
@@ -27,7 +27,7 @@ def plot_fcs(fcs, names, neworder, save_path):
             yticklabels=False
         )
         
-        ax.set_title(name, fontsize=20)
+        ax.set_title(name, fontsize=40)
     
     
     cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])
@@ -35,8 +35,8 @@ def plot_fcs(fcs, names, neworder, save_path):
     norm = mcolors.Normalize(vmin=-1.0, vmax=1.0)
     sm = cm.ScalarMappable(cmap='RdBu_r', norm=norm)
     cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.ax.tick_params(labelsize=14)
-    cbar.set_label('Pearson Correlation Coefficient', fontsize=16, labelpad=5)
+    cbar.ax.tick_params(labelsize=25)
+    cbar.set_label('Pearson Correlation Coefficient', fontsize=30, labelpad=0)
 
     plt.subplots_adjust(right=0.9)
     plt.tight_layout(rect=[0, 0, 0.9, 1])
@@ -46,6 +46,14 @@ def plot_fcs(fcs, names, neworder, save_path):
 
 if __name__ == '__main__':
     
+    mpl.rcParams["axes.labelsize"] = 20    # x and y axis labels
+    mpl.rcParams["xtick.labelsize"] = 18   # x tick labels
+    mpl.rcParams["ytick.labelsize"] = 18   # y tick labels
+    mpl.rcParams["axes.titlesize"] = 24    # plot title
+    mpl.rcParams["font.size"] = 20         # base font size
+    
+    
+    
     df = pd.read_csv('results/final_results/transformer_noise_again.csv')
     df.insert(0, 'Model', ['Transformer Single Subject'] * df.shape[0])
     df1 = pd.read_csv('results/final_results/baseline_fixed.csv')
@@ -53,10 +61,13 @@ if __name__ == '__main__':
     df2 = pd.read_csv('results/final_results/transformer_all_ss2.csv')
     df2.insert(0, 'Model', 'Transformer Fine Tuned')
     
+    subs = df2['Scan'].tolist()
+    
     df = pd.concat([df, df1, df2], ignore_index=True)
+    df = df[df['Scan'].isin(subs)]
     df.to_csv('all_models.csv')
     
-    plt.figure(figsize=(7, 5))
+    plt.figure(figsize=(12, 10))
     sns.boxplot(
         data=df,
         x='Model',
@@ -69,7 +80,7 @@ if __name__ == '__main__':
     
     df = df[df['recon_err'] < 10]
     
-    plt.figure(figsize=(7, 5))
+    plt.figure(figsize=(12, 10))
     sns.boxplot(
         data=df,
         x='Model',
