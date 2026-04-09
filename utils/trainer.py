@@ -81,10 +81,13 @@ class Trainer(ABC):
     
     def __call__(self, train_loader, val_loader):
         
-        with tqdm(range(self.cfg.num_epochs)) as pbar:
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        
+        with tqdm(range(self.cfg.num_epochs), leave=False) as pbar:
             for final_model_epochs in pbar:
                 self.current_epoch = final_model_epochs
-                self.train(train_loader)
+                self.train(self.train_loader)
                 pbar.set_postfix(
                     {
                         "train_loss": f"{self.loss_epoch[-1]:.4f}", 
@@ -93,10 +96,11 @@ class Trainer(ABC):
                     refresh=False
                 )
                 with torch.no_grad():
-                    should_stop = self.val(val_loader)
+                    should_stop = self.val(self.val_loader)
                 if should_stop:
                     print(f'Stopped after {self.current_epoch} epochs due to early stopping.')
                     break
+        self.after_training()
         self.training_summary(self.current_epoch, save_final=self.cfg.model.save_last)
     
     
@@ -108,6 +112,12 @@ class Trainer(ABC):
             batch: Batch from DataLoader.
         Returns:
             (loss, current_batch_size)
+        """
+        pass
+    
+    def after_training(self):
+        """This method runs after training is finished. 
+        Overwrite it with an evaluation script.
         """
         pass
     
@@ -244,7 +254,7 @@ class Trainer(ABC):
         fig_dir = self.work_dir.joinpath('figures')
         fig_dir.mkdir(parents=True, exist_ok=True)
         
-        print(f'Model finished training with best validation {self.cfg.loss.name}: {self.best_val_loss:.4f}')
+        print(f'\nModel finished training with best validation {self.cfg.loss.name}: {self.best_val_loss:.4f}')
         
         plt.figure()
         plt.plot(range(final_epochs+1), self.loss_epoch, 'r')
