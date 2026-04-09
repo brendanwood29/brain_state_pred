@@ -52,7 +52,6 @@ class Trainer(ABC):
         if cfg.model.print_summary:
             summary(self.model)
         
-        
         self.stopper = None
         if cfg.callbacks.use_early_stopping:
             self.stopper = EarlyStopping(cfg.callbacks.patience)
@@ -244,8 +243,6 @@ class Trainer(ABC):
                         param.requires_grad = requires_grad
                         params_changed += torch.numel(param.data)
     
-        
-
     
     def training_summary(self, final_epochs: int, save_final: bool):
         if save_final:
