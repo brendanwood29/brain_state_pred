@@ -16,7 +16,8 @@
 				"timonwong.shellcheck",
 				"albert.TabOut",
 				"Gruntfuggly.todo-tree",
-				"redhat.vscode-yaml"
+				"redhat.vscode-yaml",
+				"charliermarsh.ruff"
 			]
 		}
 	},
