@@ -58,7 +58,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-        y = y.reshape(B, self.num_steps, int(N / self.num_steps))
+        # y = y.reshape(B, self.num_steps, int(N / self.num_steps))
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
@@ -85,12 +85,12 @@ def main(cfg):
     if cfg.seed is not None:
         fix_seeds(42)
     
-    input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
+    # input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
 
     # Uncomment below to allow for fine tuning on only testing subjects
-    # with open('splits/test.json', 'r') as f:
-    #     data = json.load(f)
-    # input_csv_list = [Path(data[sub]['ses-3T']['file_path']) for sub in data]
+    with open('splits/test.json', 'r') as f:
+        data = json.load(f)
+    input_csv_list = [Path(data[sub]['ses-3T']['file_path']) for sub in data]
     
     for subject in tqdm(input_csv_list):
         cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
