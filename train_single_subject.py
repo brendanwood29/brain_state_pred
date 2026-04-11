@@ -4,9 +4,10 @@ import torch
 import random
 import numpy as np
 import pandas as pd
+from models import npi_model_getter
+from pytorch_trainer import Trainer
 from torch.utils.data import DataLoader as TorchDataLoader
-from torch_geometric.loader import DataLoader as PyGDataLoader
-from utils import Trainer, SingleSubjectBrainFuncDataset, split_single_subject, SingleSubjectBrainFuncGCNDataset, SingleSubjectBrainFuncSTGCNDataset
+from utils import SingleSubjectBrainFuncDataset, split_single_subject
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from omegaconf import OmegaConf
@@ -38,8 +39,8 @@ def get_config() -> ListConfig | DictConfig:
 
 class SingleSubjectBrainStateTrainer(Trainer):
     
-    def __init__(self, cfg):
-        super().__init__(cfg)
+    def __init__(self, cfg, model_getter):
+        super().__init__(cfg, model_getter)
         self.num_steps = cfg.model.kwargs.steps
     
     # def model_forward(self, batch):
@@ -94,7 +95,7 @@ def main(cfg):
     
     for subject in tqdm(input_csv_list):
         cfg.run_name = subject.name.removesuffix('_cleaned-timeseries.csv')
-        trainer = SingleSubjectBrainStateTrainer(cfg)
+        trainer = SingleSubjectBrainStateTrainer(cfg, npi_model_getter)
         
         if len(list(trainer.work_dir.rglob('final_model.pt'))) > 0:
             print('Subject is fininshed, continue...')
@@ -102,7 +103,6 @@ def main(cfg):
         
         train_data, test_data = split_single_subject(subject, cfg.data.train_proportion)
         fc = pd.read_csv(subject.with_name(subject.name.replace('cleaned-timeseries', 'connectome')), index_col=0).to_numpy()
-        
         # single subject brain func
         train_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
