@@ -35,7 +35,7 @@ def find_raw_data(path, name):
     return list(path.rglob(f'**/{name}*timeseries.csv'))[0]
 
 
-def get_recon(model, real_data, steps, length):
+def get_recon(model, real_data, steps):
     device = next(model.parameters()).device
     model.eval()
     outputs = [torch.tensor(real_data[x]).to(device) for x in range(steps)]
@@ -43,7 +43,7 @@ def get_recon(model, real_data, steps, length):
         try:
             sim_input = torch.vstack(outputs[-steps:]).to(device=device, dtype=torch.float)
             outputs.append(
-                model(sim_input.unsqueeze(0).to(device))[:, -1, :]
+                model(sim_input.unsqueeze(0).to(device))
             )
         except:
             sim_input = torch.cat(outputs[-steps:]).to(device=device, dtype=torch.float)
@@ -69,7 +69,7 @@ def get_model_fc(model, steps, sim_data_length, num_regions):
             noise = 0.1 * rng.standard_normal(size=(steps, num_regions))
             sim_input = torch.vstack(outputs[-steps:]).to(device) + torch.tensor(noise, dtype=torch.float).to(device)
             outputs.append(
-                model(sim_input.unsqueeze(0).to(device))[:, -1, :]
+                model(sim_input.unsqueeze(0).to(device))
             )
         except:
             noise = 0.1 * np.random.randn(steps * num_regions)
@@ -128,8 +128,11 @@ if __name__ == '__main__':
     warnings.simplefilter('ignore', FutureWarning)
     
     
-    work_dir = Path('results/testing2')
-    df = pd.DataFrame(columns=['r', 'p'])
+    work_dir = Path('results/final_results/baseline')
+    try:
+        df = pd.read_csv(f'{work_dir.name}.csv', index_col=0)
+    except:
+        df = pd.DataFrame(columns=['r', 'p'])
     
     # Organizing labels into networks
     with open('region_labels.txt', 'r') as f:
@@ -140,6 +143,8 @@ if __name__ == '__main__':
     
     
     for run in tqdm(work_dir.iterdir(), total=len(list(work_dir.iterdir()))):
+        if run in df.index.to_list():
+            continue
         cfg = OmegaConf.load(run.joinpath('config.yaml'))
         model = get_model(
             cfg.model.name, 
@@ -158,8 +163,8 @@ if __name__ == '__main__':
         model.eval()
         model.to('cuda:1')
         model_fc = get_model_fc(model, cfg.data.train.step, 1200, 360)
-        
-        recon, recon_err = get_recon(model, bold_data[int(0.8 * bold_data[:30].shape[0]):, :360], cfg.data.train.step, 1200)
+                
+        recon, recon_err = get_recon(model, bold_data[int(0.8 * bold_data[30:].shape[0]):, :360], cfg.data.train.step)
         run.joinpath('recon_signal').mkdir(parents=True, exist_ok=True)
         pd.DataFrame(recon).to_csv(run.joinpath('recon_signal', 'signal.csv'))
         df.at[run.name, 'recon_err'] = recon_err
