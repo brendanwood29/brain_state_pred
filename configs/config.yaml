@@ -22,7 +22,7 @@ scheduler:
   name: cosine
   kwargs:
     max_lr: ${optim.lr}
-    total_steps: 12150
+    total_steps: 
     pct_start: 0.1
 model: 
   name: transformer

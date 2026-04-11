@@ -5,11 +5,12 @@ optim:
 loss:
   name: mse_loss
   kwargs: {}
-scheduler:
-  name: cosine
-  kwargs:
-    max_lr: ${optim.lr}
-    total_steps: 1000000
+scheduler: null
+# scheduler:
+#   name: cosine
+#   kwargs:
+#     max_lr: ${optim.lr}
+#     total_steps: 1000000
 model: 
   name: mlp
   freeze_modules: null
