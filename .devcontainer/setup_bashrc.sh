@@ -23,5 +23,5 @@ else
   echo "PS1 customizations already present, skipping."
 fi
 
-cp /data3/projects/bwood/classes/brain_state_pred/.devcontainer/devcontainer.bash_alises ~/.bash_aliases
+cp /projects/bwood/classes/brain_state_pred/.devcontainer/devcontainer.bash_alises ~/.bash_aliases
 curl -LsSf https://astral.sh/uv/install.sh | sh

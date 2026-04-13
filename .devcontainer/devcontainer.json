@@ -26,8 +26,8 @@
 			"version": "latest"
 		}
   	},
-	"workspaceMount": "source=${localWorkspaceFolder},target=/data3/projects/bwood/classes/brain_state_pred/,type=bind",
-	"workspaceFolder": "/data3/projects/bwood/classes/brain_state_pred",
+	"workspaceMount": "source=${localWorkspaceFolder},target=/projects/bwood/classes/brain_state_pred/,type=bind",
+	"workspaceFolder": "/projects/bwood/classes/brain_state_pred",
 	"postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup_bashrc.sh",
 	"runArgs": [
 		"--gpus=all", 
