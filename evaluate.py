@@ -1,3 +1,4 @@
+import sys
 import torch
 import torch.nn as nn
 import warnings
@@ -7,7 +8,7 @@ import seaborn as sns
 from nilearn.connectome import ConnectivityMeasure
 from omegaconf import OmegaConf
 from pathlib import Path
-from models import get_model
+from models import npi_model_getter as get_model
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -128,7 +129,7 @@ if __name__ == '__main__':
     warnings.simplefilter('ignore', FutureWarning)
     
     
-    work_dir = Path('results/final_results/baseline')
+    work_dir = Path(sys.argv[1])
     try:
         df = pd.read_csv(f'{work_dir.name}.csv', index_col=0)
     except:
@@ -143,7 +144,7 @@ if __name__ == '__main__':
     
     
     for run in tqdm(work_dir.iterdir(), total=len(list(work_dir.iterdir()))):
-        if run in df.index.to_list():
+        if run.name in df.index.to_list():
             continue
         cfg = OmegaConf.load(run.joinpath('config.yaml'))
         model = get_model(

@@ -10,6 +10,7 @@ dependencies = [
     "nilearn>=0.13.1",
     "omegaconf>=2.3.0",
     "pandas>=3.0.1",
+    "pytorch-trainer",
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
     "torch==2.8.0",
@@ -21,6 +22,7 @@ dependencies = [
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
+pytorch-trainer = { workspace = true, editable = true }
 
 [[tool.uv.index]]
 name = "pytorch"
@@ -28,3 +30,8 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 [tool.uv.extra-build-dependencies]
     torch-sparse = ["torch"]
+
+[tool.uv.workspace]
+members = [
+    "pytorch_trainer",
+]

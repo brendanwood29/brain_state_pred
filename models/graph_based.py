@@ -136,7 +136,7 @@ class STGCN(nn.Module):
         self.activate = nn.ReLU()
         
     def forward(self, x, edge_index, edge_weight=None):
-        edge_weight = torch.clamp(edge_weight, min=1e-6)
+        edge_weight = torch.clamp(edge_weight, min=1e-6) #type: ignore
         x = self.rec_1(x, edge_index, edge_weight)
         x = self.activate(x)
         x = self.rec_2(x, edge_index, edge_weight)

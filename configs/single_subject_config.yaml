@@ -20,7 +20,7 @@ grad_clip:
   max_norm: 1.0
 # scheduler: null
 scheduler:
-  name: cosine
+  name: onecycle
   kwargs:
     max_lr: ${optim.lr}
     # total_steps: 2000

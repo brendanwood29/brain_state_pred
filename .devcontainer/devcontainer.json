@@ -26,10 +26,16 @@
 			"version": "latest"
 		}
   	},
-	"workspaceMount": "source=${localWorkspaceFolder},target=/data5/projects/bwood/classes/brain_state_pred/,type=bind",
-	"workspaceFolder": "/data5/projects/bwood/classes/brain_state_pred/",
-	"postCreateCommand": "cp ${containerWorkspaceFolder}.devcontainer/devcontainer.bash_alises ~/.bash_aliases && curl -LsSf https://astral.sh/uv/install.sh | sh",
-	"runArgs": ["--gpus=all", "--memory=256G", "--memory-swap=8G", "--shm-size=256G"]
+	"workspaceMount": "source=${localWorkspaceFolder},target=/projects/bwood/classes/brain_state_pred/,type=bind",
+	"workspaceFolder": "/projects/bwood/classes/brain_state_pred",
+	"postCreateCommand": "bash ${containerWorkspaceFolder}/.devcontainer/setup_bashrc.sh",
+	"runArgs": [
+		"--gpus=all", 
+		"--memory=256G", 
+		"--memory-swap=8G", 
+		"--shm-size=256G",
+		"--hostname", "brain_state_pred"
+	]
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},

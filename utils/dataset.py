@@ -5,10 +5,11 @@ import numpy as np
 from torch.utils.data import Dataset as TorchDataset
 from torch_geometric.data import Dataset as PyGDataset
 from torch_geometric.data import Data
+from pathlib import Path
 
 
 class SingleSubjectBrainFuncDataset(TorchDataset):
-    def __init__(self, bold_data: np.array, step: int, strength: float = 0.1):
+    def __init__(self, bold_data: np.ndarray, step: int, strength: float = 0.1):
         super().__init__()
         self.inputs = []
         self.outputs = []
@@ -38,7 +39,7 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
     
 class BrainFuncDataset(TorchDataset):
     
-    def __init__(self, split_path: str, step: int, strength: float):
+    def __init__(self, split_path: str | Path, step: int, strength: float):
         super().__init__()
         
         self.strength = strength
@@ -75,7 +76,7 @@ class BrainFuncGCNDataset(PyGDataset):
     
     def __init__(
         self,
-        split_path: str,
+        split_path: str | Path,
         threshold: float,
         step: int,
     ):
@@ -134,8 +135,8 @@ class SingleSubjectBrainFuncGCNDataset(PyGDataset):
 
     def __init__(
         self,
-        bold_data: np.array,
-        fc: np.array,
+        bold_data: np.ndarray,
+        fc: np.ndarray,
         threshold: float,
         step: int,
     ):
@@ -170,8 +171,8 @@ class SingleSubjectBrainFuncSTGCNDataset(TorchDataset):
 
     def __init__(
         self,
-        bold_data: np.array,
-        fc: np.array,
+        bold_data: np.ndarray,
+        fc: np.ndarray,
         threshold: float,
         step: int,
     ):
