@@ -279,10 +279,10 @@ class Block(nn.Module):
         **kwargs
     ):
         super().__init__()
-        self.layer_norm1 = nn.LayerNorm((steps, in_features))
+        self.layer_norm1 = nn.LayerNorm([steps, in_features])
         self.attn = MultiHeadSelfAttention(in_features, num_heads, steps, **kwargs)
         self.ffn = FFN(in_features, ffn_dropout=kwargs['ffn_dropout'], last_layer=last_layer)
-        self.layer_norm2 = nn.LayerNorm((steps, in_features))
+        self.layer_norm2 = nn.LayerNorm([steps, in_features])
     
     def forward(self, x):
         """
@@ -307,15 +307,15 @@ class STBlock(nn.Module):
         **kwargs
     ):
         super().__init__()
-        self.layer_norm1 = nn.LayerNorm((steps, in_features))
+        self.layer_norm1 = nn.LayerNorm([steps, in_features])
         self.embed_s = TrainableTemporalEmbedding(steps)
         self.attn_s = MultiHeadSelfAttention(in_features, num_heads, steps, masked_attn=True, **kwargs)
-        self.layer_norm_s = nn.LayerNorm((steps, in_features))
+        self.layer_norm_s = nn.LayerNorm([steps, in_features])
         self.embed_t = TrainableRegionEmbedding(in_features)
         self.attn_t = MultiHeadSelfAttention(steps, num_heads, in_features, masked_attn=False, **kwargs)
-        self.layer_norm_t = nn.LayerNorm((in_features, steps))
+        self.layer_norm_t = nn.LayerNorm([in_features, steps])
         self.cross_attn = MultiHeadCrossAttention(in_features, steps, num_heads, masked_attn=True, **kwargs)
-        self.layer_norm2 = nn.LayerNorm((steps, in_features))
+        self.layer_norm2 = nn.LayerNorm([steps, in_features])
         self.ffn = FFN(in_features, ffn_dropout=kwargs['ffn_dropout'], last_layer=last_layer)
         
     def forward(self, x):
