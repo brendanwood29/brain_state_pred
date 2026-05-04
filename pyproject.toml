@@ -11,6 +11,7 @@ dependencies = [
     "omegaconf>=2.3.0",
     "pandas>=3.0.1",
     "pytorch-trainer",
+    "ruff>=0.15.12",
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
     "torch==2.8.0",
@@ -35,3 +36,12 @@ explicit = true
 members = [
     "pytorch_trainer",
 ]
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "double"        # or "single"
+indent-style = "space"
+docstring-code-format = true  # formats code blocks inside docstrings
+[tool.ruff.lint]
+select = ["E", "F", "I"]  # E=pycodestyle, F=pyflakes, I=isort
