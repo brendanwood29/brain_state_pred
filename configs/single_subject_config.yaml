@@ -1,8 +1,8 @@
-num_epochs: 300
+num_epochs: 300 
 batch_size: 256
 device: cuda:0
 run_name: run_1
-work_dir: results/new_norm
+work_dir: results/symposium/single_subject
 seed: 42
 # batch_pbar: true
 optim:
@@ -45,7 +45,7 @@ model:
     # strict: false
 ########## Transformer with lora
   kwargs:
-    in_features: 360
+    in_features: 100
     num_heads: 2
     steps: 20
     num_blocks: 2

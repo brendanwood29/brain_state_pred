@@ -4,27 +4,58 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset as TorchDataset
 from torch_geometric.data import Dataset as PyGDataset
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from torch_geometric.data import Data
 from pathlib import Path
 
 
 class SingleSubjectBrainFuncDataset(TorchDataset):
-    def __init__(self, bold_data: np.ndarray, step: int, strength: float = 0.1):
+    def __init__(
+        self, 
+        bold_data: np.ndarray, 
+        step: int, 
+        pred_len: int = 20,
+        strength: float = 0.1,
+        mean: float | None = None,
+        std: float | None = None,
+        scaler: MinMaxScaler | StandardScaler | None = None
+    ):
         super().__init__()
         self.inputs = []
         self.outputs = []
         self.strength = strength
         data_length = bold_data.shape[0]
+        # if scaler is None:
+        #     scaler = StandardScaler()
+        #     bold_torch = torch.tensor(bold_data)
+        #     bold_torch = torch.fft.rfft(bold_torch, dim=0).numpy()
+        #     scaler.fit(bold_data)
+        # else:
+        #     bold_data = scaler.transform(bold_data)
+        # self._scaler = scaler        
         for i in range(data_length):
-            if (i + step + 1) < data_length:
+            if (i + step + 1) <= data_length:
                 self.inputs.append(
                     torch.tensor(bold_data[i:i+step], dtype=torch.float).flatten()
                 )
+                out = torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
+                # out = torch.tensor(bold_data[i+step:i+step+pred_len], dtype=torch.float)
+                # out = torch.fft.rfft(out, dim=0)
+                # out = torch.stack([out.real, out.imag], dim=0)
                 self.outputs.append(
-                    # torch.tensor(bold_data[i+1:i+step+1], dtype=torch.float).flatten()
-                    torch.tensor(bold_data[i+step], dtype=torch.float).flatten()
+                    out
+                    # torch.tensor(bold_data[i+step], dtype=torch.float).flatten()
                     # torch.tensor(bold_data[i+step], dtype=torch.float).t()
                 )
+        # self.outputs = torch.stack(self.outputs, dim=0)
+        # if mean is None and std is None:
+        #     self.mean = self.outputs.mean(dim=0)
+        #     self.std = self.outputs.std(dim=0)
+        # else:
+        #     self.mean = mean
+        #     self.std = std
+        # self.outputs = (self.outputs - self.mean) / torch.clamp(self.std, min=1e-9)
+    
     
     def __len__(self):
         return len(self.inputs)

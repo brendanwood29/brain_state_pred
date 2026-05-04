@@ -3,12 +3,15 @@ from torch_geometric.loader import DataLoader as PyGDataLoader
 from .dataset import BrainFuncDataset, BrainFuncGCNDataset, SingleSubjectBrainFuncDataset, SingleSubjectBrainFuncGCNDataset, SingleSubjectBrainFuncSTGCNDataset
 from .make_datasplits import split_single_subject
 from pathlib import Path
+from .loss_fns import RealImagMSE
+from pytorch_trainer import LossGetter
 
 __all__ = [
     'SingleSubjectBrainFuncDataset',
     'SingleSubjectBrainFuncGCNDataset',
     'SingleSubjectBrainFuncSTGCNDataset',
-    'split_single_subject'
+    'split_single_subject',
+    'get_loss_fn'
 ]
 
 def get_loader(data_path: str | Path, step: int, strength: float, batch_size=64, shuffle=True, **kwargs):
@@ -31,4 +34,8 @@ def get_pyg_loader(data_path: str | Path, threshold: float, step: int, batch_siz
         **kwargs
     )
     
-    
+get_loss_fn = LossGetter(
+    {
+        'real_img_loss': RealImagMSE
+    }
+)   
