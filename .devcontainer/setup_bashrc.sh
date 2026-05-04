@@ -11,7 +11,7 @@ parse_git_branch() {
 }
 PS1_date="\[\033[38;5;139m\]\d\[$(tput sgr0)\]\[\033[38;5;15m\]"
 PS1_time="\[$(tput sgr0)\]\[\033[38;5;139m\]\t\[$(tput sgr0)\]\[\033[38;5;15m\]"
-PS1_host="\[$(tput sgr0)\]\[\033[38;5;73m\]\h\[$(tput sgr0)\]\[\033[38;5;15m\]"
+PS1_host="\[$(tput sgr0)\]\[\033[38;5;73m\]@\h\[$(tput sgr0)\]\[\033[38;5;15m\]"
 PS1_wdir="\[$(tput sgr0)\]\[\033[38;5;24m\]\w"
 PS1_gitbranch="\e[38;5;204m\]\$(parse_git_branch)"
 PS1_gt="\[$(tput bold)\]\[$(tput sgr0)\]\[\e[38;5;214m\]>"
