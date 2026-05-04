@@ -4,6 +4,6 @@ __pycache__/
 *data*/
 temp*
 .vscode/
-splits/
+splits*/
 work_dir/
 *result*/
