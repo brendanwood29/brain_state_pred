@@ -1,41 +1,63 @@
+from pathlib import Path
+
+from evaluate import evaluate_on_train_end
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.loader import DataLoader as PyGDataLoader
-from .dataset import BrainFuncDataset, BrainFuncGCNDataset, SingleSubjectBrainFuncDataset, SingleSubjectBrainFuncGCNDataset, SingleSubjectBrainFuncSTGCNDataset
-from .make_datasplits import split_single_subject
-from pathlib import Path
-from .loss_fns import RealImagMSE
+
 from pytorch_trainer import LossGetter
 
+from .dataset import (
+    BrainFuncDataset,
+    BrainFuncGCNDataset,
+    SingleSubjectBrainFuncDataset,
+    SingleSubjectBrainFuncGCNDataset,
+    SingleSubjectBrainFuncSTGCNDataset,
+)
+from .loss_fns import RealImagMSE
+from .make_datasplits import split_single_subject
+
 __all__ = [
-    'SingleSubjectBrainFuncDataset',
-    'SingleSubjectBrainFuncGCNDataset',
-    'SingleSubjectBrainFuncSTGCNDataset',
-    'split_single_subject',
-    'get_loss_fn'
+    "SingleSubjectBrainFuncDataset",
+    "SingleSubjectBrainFuncGCNDataset",
+    "SingleSubjectBrainFuncSTGCNDataset",
+    "split_single_subject",
+    "get_loss_fn",
+    "evaluate_on_train_end",
 ]
 
-def get_loader(data_path: str | Path, step: int, strength: float, batch_size=64, shuffle=True, **kwargs):
-    
+
+def get_loader(
+    data_path: str | Path,
+    step: int,
+    strength: float,
+    batch_size=64,
+    shuffle=True,
+    **kwargs,
+):
 
     return TorchDataLoader(
         BrainFuncDataset(data_path, step, strength),
         batch_size=batch_size,
         shuffle=shuffle,
-        **kwargs
+        **kwargs,
     )
-    
-    
-def get_pyg_loader(data_path: str | Path, threshold: float, step: int, batch_size=64, shuffle=True, **kwargs):
-    
+
+
+def get_pyg_loader(
+    data_path: str | Path,
+    threshold: float,
+    step: int,
+    batch_size=64,
+    shuffle=True,
+    **kwargs,
+):
+
     return PyGDataLoader(
         BrainFuncGCNDataset(data_path, threshold, step),
         batch_size=batch_size,
         shuffle=shuffle,
-        **kwargs
+        **kwargs,
     )
-    
-get_loss_fn = LossGetter(
-    {
-        'real_img_loss': RealImagMSE
-    }
-)   
+
+
+get_loss_fn = LossGetter({"real_img_loss": RealImagMSE})
