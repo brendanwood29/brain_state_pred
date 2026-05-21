@@ -1,18 +1,17 @@
-from .mlp import MLP, ANN_MLP
-from .lstm import LSTM
-from .transformer_based import TransformerModel
-from .graph_based import GCN, STGCN
 from pytorch_trainer import ModelGetter
 
+from .graph_based import GCN, STGCN
+from .lstm import LSTM
+from .mlp import ANN_MLP, MLP
+from .transformer_based import TransformerModel
 
 npi_model_getter = ModelGetter(
     {
-        'mlp': MLP,
-        'npi_mlp':ANN_MLP,
-        'transformer': TransformerModel,
-        'gcn': GCN,
-        'stgcn': STGCN,
-        'lstm': LSTM
+        "mlp": MLP,
+        "npi_mlp": ANN_MLP,
+        "transformer": TransformerModel,
+        "gcn": GCN,
+        "stgcn": STGCN,
+        "lstm": LSTM,
     }
 )
-

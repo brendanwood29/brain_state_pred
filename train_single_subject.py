@@ -14,8 +14,12 @@ from tqdm import tqdm
 
 from models import npi_model_getter
 from pytorch_trainer import Trainer
-from utils import SingleSubjectBrainFuncDataset, get_loss_fn, split_single_subject
-from utils.evaluate import evaluate_on_train_end
+from utils import (
+    SingleSubjectBrainFuncDataset,
+    evaluate_on_train_end,
+    get_loss_fn,
+    split_single_subject,
+)
 
 
 def fix_seeds(seed=42):
@@ -46,25 +50,27 @@ class SingleSubjectBrainStateTrainer(Trainer):
         super().__init__(cfg, model_getter, get_loss_fn=loss_getter)
         self.num_steps = cfg.model.kwargs.steps
 
-    # def model_forward(self, batch):
-    #     """NPI MLP Model Forward"""
-    #     batch = [x.to(self.cfg.device) for x in batch]
-    #     x, y = batch
-    #     B, N = x.shape
-    #     y_hat = self.model(x)
-    #     loss = self.loss_fn(y_hat, y)
-    #     return loss, B
-
     def model_forward(self, batch):
-        """Transformer Model Forward"""
+        """NPI MLP Model Forward"""
         batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-        y = y.reshape(B, -1, 360)
+        y = y.reshape(B, -1, self.cfg.data.num_regions)
         y_hat = self.model(x)
-        loss = self.loss_fn(y_hat, y)
+        loss = self.loss_fn(y_hat, y[:, 0, :])
         return loss, B
+
+    # def model_forward(self, batch):
+    #     """Transformer Model Forward"""
+    #     batch = [x.to(self.cfg.device) for x in batch]
+    #     x, y = batch
+    #     B, N = x.shape
+    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
+    #     y = y.reshape(B, -1, 360)
+    #     y_hat = self.model(x)
+    #     loss = self.loss_fn(y_hat, y)
+    #     return loss, B
 
     # def after_training(self):
     #     self.model.eval()
@@ -153,7 +159,10 @@ def main(cfg):
         # single subject brain func
         train_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
-                train_data, cfg.data.train.step, strength=cfg.data.strength
+                train_data,
+                cfg.data.train.step,
+                noise_strength=cfg.data.noise_strength,
+                pred_len=cfg.data.pred_len,
             ),
             batch_size=cfg.batch_size,
             shuffle=True,
