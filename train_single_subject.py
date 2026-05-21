@@ -6,18 +6,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-import torch.nn as nn
-from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch.utils.data import DataLoader as TorchDataLoader
 from tqdm import tqdm
 
-from evaluate import evaluate_on_train_end
 from models import npi_model_getter
 from pytorch_trainer import Trainer
 from utils import SingleSubjectBrainFuncDataset, get_loss_fn, split_single_subject
+from utils.evaluate import evaluate_on_train_end
 
 
 def fix_seeds(seed=42):
@@ -49,7 +47,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         self.num_steps = cfg.model.kwargs.steps
 
     # def model_forward(self, batch):
-    #     """ NPI MLP Model Forward"""
+    #     """NPI MLP Model Forward"""
     #     batch = [x.to(self.cfg.device) for x in batch]
     #     x, y = batch
     #     B, N = x.shape
@@ -63,7 +61,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         x, y = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-        y = y.reshape(B, -1, 100)
+        y = y.reshape(B, -1, 360)
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
@@ -115,12 +113,12 @@ class SingleSubjectBrainStateTrainer(Trainer):
     #     return loss, x.shape[0]
 
 
-def reconstruct_signal(coeff, mean, std):
-    coeff = (coeff * std.unsqueeze(1)) + mean.unsqueeze(1)
-    if not coeff.is_complex():
-        coeff = torch.complex(coeff[0], coeff[1])
-    signal = torch.fft.irfft(coeff, n=20, dim=1)
-    return signal
+# def reconstruct_signal(coeff, mean, std):
+#     coeff = (coeff * std.unsqueeze(1)) + mean.unsqueeze(1)
+#     if not coeff.is_complex():
+#         coeff = torch.complex(coeff[0], coeff[1])
+#     signal = torch.fft.irfft(coeff, n=20, dim=1)
+#     return signal
 
 
 def main(cfg):
@@ -134,7 +132,10 @@ def main(cfg):
     with open("splits/test.json", "r") as f:
         data = json.load(f)
     # input_csv_list = [Path(data[sub]['ses-3T']['file_path'].replace('npi', 'julie')) for sub in data]
-    input_csv_list = [Path(data[sub]["ses-3T"]["file_path"]) for sub in data]
+    input_csv_list = [
+        Path(data[sub]["ses-3T"]["file_path"].replace("data_100p", "data_like-npi"))
+        for sub in data
+    ]
     input_csv_list.sort()
     for subject in tqdm(input_csv_list):
         cfg.run_name = subject.name.removesuffix("_cleaned-timeseries.csv")
@@ -161,7 +162,7 @@ def main(cfg):
             SingleSubjectBrainFuncDataset(
                 test_data,
                 cfg.data.test.step,
-                strength=0.0,
+                noise_strength=0.0,
                 # mean=train_loader.dataset.mean,
                 # std=train_loader.dataset.std,
                 # scaler=train_loader.dataset.scaler # type: ignore
@@ -224,6 +225,7 @@ def main(cfg):
                 test_data,
                 fc,
                 trainer.model,
+                label_file="region_labels.txt",
             )
 
 

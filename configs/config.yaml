@@ -1,8 +1,8 @@
 num_epochs: 50
 batch_size: 2048
-device: cuda:1
+device: cuda:0
 run_name: run_2
-work_dir: results/final_results/transformer_all
+work_dir: results/symposium/pretrained
 seed: 42
 batch_pbar: true
 optim:
@@ -11,23 +11,25 @@ optim:
   kwargs:
     weight_decay: 5e-5
 loss:
-  name: mse_fc_loss
-  kwargs:
-    mse_weight: 1.0
-    fc_weight: 0.5
+  name: mse_loss
+  # kwargs:
+  #   mse_weight: 1.0
+  #   fc_weight: 0.5
 grad_clip:
   max_norm: 1.0
 # scheduler: null
 scheduler:   
-  name: cosine
+  name: onecycle
   kwargs:
     max_lr: ${optim.lr}
-    total_steps: 
+    # total_steps: 1000 
+    steps_per_epoch: 236
+    epochs: ${num_epochs}
     pct_start: 0.1
 model: 
   name: transformer
   print_summary: true
-  num_models_to_save: 8
+  num_models_to_save: 3
   save_last: true
   # freeze_modules:
   #   - model
@@ -62,11 +64,11 @@ model:
   #   out_features: 1
 ########## Transformer with lora
   kwargs:
-    in_features: 360
+    in_features: 100
     num_heads: 2
     steps: 20
     num_blocks: 5
-    masked_attn: false
+    # masked_attn: false
     attn_drop_prob: 0.3
     final_drop_prob: 0.3
     ffn_dropout: 0.3
@@ -87,7 +89,7 @@ callbacks:
   threshold: 0.0001
 data:
   train_proportion: 0.8
-  strength: 0.3
+  noise_strength: 0.3
   train: 
     data_path: splits/train.json
     step: ${model.kwargs.steps}

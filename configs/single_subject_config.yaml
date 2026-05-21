@@ -1,8 +1,8 @@
 num_epochs: 300 
-batch_size: 256
+batch_size: 82
 device: cuda:0
 run_name: run_1
-work_dir: results/symposium/single_subject
+work_dir: results/TEST
 seed: 42
 # batch_pbar: true
 optim:
@@ -32,7 +32,7 @@ scheduler:
 model: 
   name: transformer
   print_summary: true
-  num_models_to_save: 3
+  num_models_to_save: 5
   save_last: true
   # freeze_modules:
   #   - model
@@ -45,10 +45,10 @@ model:
     # strict: false
 ########## Transformer with lora
   kwargs:
-    in_features: 100
+    in_features: 360
     num_heads: 2
-    steps: 20
-    num_blocks: 2
+    steps: 8
+    num_blocks: 1
     # masked_attn: true
     attn_drop_prob: 0.25
     final_drop_prob: 0.25
@@ -93,7 +93,7 @@ callbacks:
   threshold: 0.0001
 data:
   train_proportion: 0.8
-  strength: 0.2
+  noise_strength: 0.2
   train: 
     step: ${model.kwargs.steps}
     # threshold: 0.8
