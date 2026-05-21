@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from evaluate import evaluate_on_train_end
 from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.loader import DataLoader as PyGDataLoader
 
@@ -13,6 +12,7 @@ from .dataset import (
     SingleSubjectBrainFuncGCNDataset,
     SingleSubjectBrainFuncSTGCNDataset,
 )
+from .evaluate import evaluate_on_train_end
 from .loss_fns import RealImagMSE
 from .make_datasplits import split_single_subject
 
