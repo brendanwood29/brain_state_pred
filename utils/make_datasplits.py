@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
+STRICT_TRAIN_TEST = False # If true, prevents training and testing having the same datasets
 TRAIN_SPLIT = 0.7
 VAL_SPLIT = 0.1
 TRAIN_SETS = [
@@ -54,10 +55,11 @@ def split_by_subjects(data_dir, splits):
         with open(dataset, 'r') as f:
             data = json.load(f)
         
-        # if name in TRAIN_SETS and name in TEST_SETS:
-        #     raise ValueError(f'{name} in train and test sets')
-        # if name in VAL_SETS and name in TEST_SETS:
-        #     raise ValueError(f'{name} in val and test sets')
+        if STRICT_TRAIN_TEST:
+            if name in TRAIN_SETS and name in TEST_SETS:
+                raise ValueError(f'{name} in train and test sets')
+            if name in VAL_SETS and name in TEST_SETS:
+                raise ValueError(f'{name} in val and test sets')
         
         if name in TRAIN_SETS and name in VAL_SETS and name in TEST_SETS:
             train_subs, val_subs, test_subs = split_train_val_test(list(data.keys()))
@@ -95,7 +97,7 @@ def split_single_subject(data_path, train_proportion):
 
 if __name__ == '__main__':
     
-    data_dir = Path('data_like-npi')
+    data_dir = Path('data_100p')
     splits = Path('splits')
     splits.mkdir(parents=True, exist_ok=True)
     
