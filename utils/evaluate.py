@@ -5,12 +5,14 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import svgutils.transform as sg
 import torch
 from nilearn.connectome import ConnectivityMeasure
 from scipy.stats import pearsonr
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from joblib import Parallel, delayed
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch_geometric.data import Data
@@ -121,6 +123,27 @@ def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, 
     return connectome[0]
 
 
+def plot_traces(i, test_data, recon, save_path):
+    fig, ax = plt.subplots(figsize=(6, 2))
+    ax.plot(
+        test_data,
+        color="steelblue",
+        linewidth=0.8,
+        label="Original",
+        rasterized=True,
+    )
+    ax.plot(
+        recon,
+        color="tomato",
+        linewidth=0.8,
+        label="Reconstruction",
+        rasterized=True,
+    )
+    fig.tight_layout(pad=0.5)
+    fig.savefig(save_path.joinpath(f"panel_{i}.svg"))
+    plt.close(fig)
+
+
 def evaluate_on_train_end(
     cfg: DictConfig | ListConfig, test_data, real_fc, model, label_file
 ):
@@ -153,44 +176,31 @@ def evaluate_on_train_end(
     df.at[run.name, "recon_err"] = recon_err
 
     n_traces = recon.shape[1]
-    ncols = 10  # adjust to taste
-    nrows = np.ceil(n_traces / ncols).astype(int)  # 18 rows for 360
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(ncols * 1.5, nrows * 1.2), sharex=True, sharey=True
+    ncols = np.ceil(np.sqrt(n_traces)).astype(int)
+    nrows = np.ceil(n_traces / ncols).astype(int)
+    panel_path = run.joinpath("figures", "panels")
+    panel_path.mkdir(parents=True, exist_ok=True)
+    Parallel(-1, backend="loky")(
+        delayed(plot_traces)(i, test_data[:, i], recon[:, i], panel_path)
+        for i in range(n_traces)
     )
+    nrows = np.ceil(n_traces / ncols)
+    panel_w, panel_h = 600, 200  # must match figsize * dpi (default 100)
 
-    for i, ax in enumerate(axes.flat):
-        if i < n_traces:
-            ax.plot(
-                test_data[:, i],
-                color="steelblue",
-                linewidth=0.8,
-                label="Original",
-                rasterized=True,
-            )
-            ax.plot(
-                recon[:, i],
-                color="tomato",
-                linewidth=0.8,
-                label="Reconstruction",
-                rasterized=True,
-            )
-            ax.axis("off")
-        else:
-            ax.set_visible(False)  # hide unused subplots
+    fig = sg.SVGFigure()
+    fig.set_size((f"{ncols * panel_w}px", f"{nrows * panel_h}px"))
 
-    plt.subplots_adjust(wspace=0.05, hspace=0.05)
-    fig.legend(
-        ["Original", "Reconstruction"],
-        loc="lower center",
-        ncol=2,
-        fontsize=8,
-        bbox_to_anchor=(0.5, -0.01),
-    )
-    run.joinpath("figures").mkdir(parents=True, exist_ok=True)
-    fig.savefig(run.joinpath("figures", "traces.png"), dpi=150, bbox_inches="tight")
-    plt.close()
+    panels = sorted(panel_path.glob("panel_*.svg"))
+    elements = []
+    for idx, path in enumerate(panels):
+        row, col = divmod(idx, ncols)
+        svg = sg.fromfile(str(path))
+        root = svg.getroot()
+        root.moveto(col * panel_w, row * panel_h)
+        elements.append(root)
 
+    fig.append(elements)
+    fig.save(run.joinpath("figures", "all_panels.svg"))
     r, p = pearsonr(remove_diag(real_fc), remove_diag(model_fc))
     df.at[run.name, "r"] = r  # type: ignore
     df.at[run.name, "p"] = p  # type: ignore
