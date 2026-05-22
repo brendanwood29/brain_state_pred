@@ -13,7 +13,7 @@ from .dataset import (
     SingleSubjectBrainFuncSTGCNDataset,
 )
 from .evaluate import evaluate_on_train_end
-from .loss_fns import MSEFCLoss, RealImagMSE
+from .loss_fns import MSEFCLoss, RealImagMSE, ReconFourierLoss
 from .make_datasplits import split_single_subject
 
 __all__ = [
@@ -60,4 +60,10 @@ def get_pyg_loader(
     )
 
 
-get_loss_fn = LossGetter({"real_img_loss": RealImagMSE, "mse_fc_loss": MSEFCLoss})
+get_loss_fn = LossGetter(
+    {
+        "real_img_loss": RealImagMSE,
+        "mse_fc_loss": MSEFCLoss,
+        "mse_fourier_loss": ReconFourierLoss,
+    }
+)

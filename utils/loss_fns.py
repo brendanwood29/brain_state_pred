@@ -46,3 +46,21 @@ class MSEFCLoss:
             @ (y_y_bar**2).sum(dim=-1, keepdim=True).mT
         ) ** 0.5
         return num / den
+
+
+class ReconFourierLoss:
+    def __init__(self, recon_weight: float, fourier_weight: float):
+        self.mse = nn.MSELoss()
+        self.recon_weight = recon_weight
+        self.fourier_weight = fourier_weight
+
+    def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
+
+        y_fft = torch.fft.rfft(y, dim=1)
+        y_hat_fft = torch.fft.rfft(y_hat, dim=1)
+        real_mse = self.mse(y_hat_fft.real, y_fft.real)
+        imag_mse = self.mse(y_hat_fft.imag, y_fft.imag)
+        fft_loss = real_mse + imag_mse
+        return (self.recon_weight * self.mse(y_hat, y)) + (
+            self.fourier_weight * fft_loss
+        )
