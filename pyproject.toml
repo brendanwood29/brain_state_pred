@@ -14,6 +14,7 @@ dependencies = [
     "ruff>=0.15.12",
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
+    "svgutils>=0.3.4",
     "torch==2.8.0",
     "torch-geometric>=2.7.0",
     # "torch-geometric-temporal>=0.56.2",
