@@ -1,3 +1,5 @@
+from typing import List
+
 import torch
 import torch.nn as nn
 
@@ -49,18 +51,46 @@ class MSEFCLoss:
 
 
 class ReconFourierLoss:
-    def __init__(self, recon_weight: float, fourier_weight: float):
+    def __init__(
+        self, recon_weight: float, fourier_weight: float, freq_weights: List[float]
+    ):
         self.mse = nn.MSELoss()
+        self.fft_mse = nn.MSELoss(reduction="none")
         self.recon_weight = recon_weight
         self.fourier_weight = fourier_weight
+        self.freq_weights = torch.tensor(freq_weights)
 
     def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
 
+        self.freq_weights = self.freq_weights.to(y_hat.device)
         y_fft = torch.fft.rfft(y, dim=1)
         y_hat_fft = torch.fft.rfft(y_hat, dim=1)
-        real_mse = self.mse(y_hat_fft.real, y_fft.real)
-        imag_mse = self.mse(y_hat_fft.imag, y_fft.imag)
-        fft_loss = real_mse + imag_mse
+        B, C, N = y_fft.real.shape
+        real_mse = self.fft_mse(y_hat_fft.real, y_fft.real).reshape(B * N, C)
+        imag_mse = self.fft_mse(y_hat_fft.imag, y_fft.imag).reshape(B * N, C)
+        fft_loss = (self.freq_weights * real_mse.mean(dim=0)).mean() + (
+            self.freq_weights * imag_mse.mean(dim=0)
+        ).mean()
         return (self.recon_weight * self.mse(y_hat, y)) + (
             self.fourier_weight * fft_loss
+        )
+
+
+class MSE1DLoss:
+    def __init__(
+        self,
+        recon_weight: float,
+        first_weight: float,
+    ):
+        self.mse = nn.MSELoss()
+        self.recon_weight = recon_weight
+        self.first_weight = first_weight
+
+    def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
+
+        y_prime = torch.diff(y, dim=1)
+        y_hat_prime = torch.diff(y_hat, dim=1)
+
+        return (self.recon_weight * self.mse(y_hat, y)) + (
+            self.first_weight * self.mse(y_hat_prime, y_prime)
         )
