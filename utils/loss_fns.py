@@ -20,13 +20,14 @@ class RealImagMSE(nn.Module):
         )
 
 
-class MSEFCLoss:
+class MSEFCLoss(nn.Module):
     def __init__(self, mse_weight: float, fc_weight: float):
+        super().__init__()
         self.mse = nn.MSELoss()
         self.mse_weight = mse_weight
         self.fc_weight = fc_weight
 
-    def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor):
 
         model_fc = self.corcoef(y_hat.mT, y_hat.mT)
         real_fc = self.corcoef(y.mT, y.mT)
@@ -50,17 +51,18 @@ class MSEFCLoss:
         return num / den
 
 
-class ReconFourierLoss:
+class ReconFourierLoss(nn.Module):
     def __init__(
         self, recon_weight: float, fourier_weight: float, freq_weights: List[float]
     ):
+        super().__init__()
         self.mse = nn.MSELoss()
         self.fft_mse = nn.MSELoss(reduction="none")
         self.recon_weight = recon_weight
         self.fourier_weight = fourier_weight
         self.freq_weights = torch.tensor(freq_weights)
 
-    def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor):
 
         self.freq_weights = self.freq_weights.to(y_hat.device)
         y_fft = torch.fft.rfft(y, dim=1)
@@ -76,17 +78,18 @@ class ReconFourierLoss:
         )
 
 
-class MSE1DLoss:
+class MSE1DLoss(nn.Module):
     def __init__(
         self,
         recon_weight: float,
         first_weight: float,
     ):
+        super().__init__()
         self.mse = nn.MSELoss()
         self.recon_weight = recon_weight
         self.first_weight = first_weight
 
-    def __call__(self, y_hat: torch.Tensor, y: torch.Tensor):
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor):
 
         y_prime = torch.diff(y, dim=1)
         y_hat_prime = torch.diff(y_hat, dim=1)
