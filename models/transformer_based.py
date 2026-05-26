@@ -342,9 +342,8 @@ class STBlock(nn.Module):
             in_features, steps, num_heads, masked_attn=True, **kwargs
         )
         self.layer_norm2 = nn.LayerNorm([steps, in_features])
-        self.ffn = FFN(
-            in_features, ffn_dropout=kwargs["ffn_dropout"], last_layer=last_layer
-        )
+        self.ffn = FFN(in_features, ffn_dropout=kwargs["ffn_dropout"], last_layer=True)
+        # self.proj = nn.Linear(steps, 10)
 
     def forward(self, x):
         """
@@ -359,10 +358,10 @@ class STBlock(nn.Module):
         x_t = x_t + self.attn_t(x_t)
         x_t = self.layer_norm_t(x_t)
         x_t = x_t + self.ffn_t(x_t)
-        x = x + self.cross_attn(x_t.permute(0, 2, 1), x_s)
+        x = x + self.cross_attn(x_s, x_t.permute(0, 2, 1))
         x = self.layer_norm2(x)
         x = x + self.ffn(x)
-
+        # x = self.proj(x.permute(0, 2, 1)).permute(0, 2, 1)
         return x
 
 
@@ -390,7 +389,14 @@ class TransformerModel(nn.Module):
         """
         x must have shape (Batch, Num timepoints, Num Regions)
         """
-        x = self.model(x)
+        # outputs = [x[:, i, :] for i in range(x.shape[1])]
+        # for _ in range(self.pred_len):
+        #     inputs = torch.stack(outputs[-self.steps :], dim=1)
+        #     outputs.append(self.model(inputs)[:, -1, :])
+        # outputs = torch.stack(outputs[-self.pred_len :], dim=1)
+        # return outputs
+
+        x = self.model(x)[:, -1, :]
         return x
 
 
