@@ -1,9 +1,11 @@
+import shutil
 import warnings
 from pathlib import Path
 
 import matplotlib
 import numpy as np
 import pandas as pd
+import scipy.signal as signal
 import seaborn as sns
 import svgutils.transform as sg
 import torch
@@ -40,26 +42,57 @@ def find_raw_data(path, name, suff="timeseries"):
     return list(path.rglob(f"**/{name}*{suff}.csv"))[0]
 
 
-def get_recon(model, real_data, steps, device):
+def bandpass(data, low, high, fs, order=4):
+    ny = fs / 2
+    low = low / ny
+    high = high / ny
+    b, a = signal.butter(order, high, btype="lowpass")
+    return signal.filtfilt(b, a, data, axis=0).copy()
+
+
+def get_recon(model, real_data, steps, device, mean, std):
     model.eval()
+    mean = mean.to(device)
+    std = std.to(device)
     outputs = [torch.tensor(real_data[x]) for x in range(steps)]
-    for _ in range(steps, real_data.shape[0]):
+    real_data = torch.tensor(real_data)
+    # for i in range(0, real_data.shape[0] - steps, 1):
+    while len(outputs) < real_data.shape[0]:
         sim_input = torch.vstack([x.to(device) for x in outputs[-steps:]]).to(
             device=device, dtype=torch.float
         )
-        outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1, :])
+        # sim_input = torch.vstack([x for x in real_data[i : i + steps]]).to(
+        #     device=device, dtype=torch.float
+        # )
+        # inter_output = model(sim_input.unsqueeze(0).to(device)).reshape(2, 5, -1)
+        inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
+        # inter_output = (inter_output * std) + mean
+        # inter_output = torch.fft.irfft(
+        #     torch.complex(inter_output[0], inter_output[1]), dim=0
+        # )
+        outputs.append(inter_output + sim_input[-1])
+        # outputs.extend([x for x in inter_output])
+        # outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1, :])
+        # outputs.extend([x for x in model(sim_input.unsqueeze(0).to(device)).squeeze(0)])
         outputs = [x.to("cpu") for x in outputs]
     outputs = torch.vstack(outputs).detach().cpu().numpy()
-
+    # outputs = bandpass(outputs, 0.01, 0.1, 0.5)
+    real_data = real_data.cpu().numpy()
     return outputs, np.mean(
-        (real_data[steps + 1 : outputs.shape[0]] - outputs[steps + 1 :]) ** 2
+        (
+            real_data[steps + 1 : outputs.shape[0]]
+            - outputs[steps + 1 : real_data.shape[0]]
+        )
+        ** 2
     )
 
 
-def get_model_fc(model, steps, sim_data_length, num_regions, device):
+def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
 
     rng = np.random.default_rng(seed=42)
 
+    mean = mean.to(device)
+    std = std.to(device)
     model.eval()
     outputs = [
         torch.zeros(num_regions, device=device, dtype=torch.float) for _ in range(steps)
@@ -70,7 +103,15 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device):
         sim_input = torch.vstack(
             [x.to(device) for x in outputs[-steps:]]
         ) + torch.tensor(noise, dtype=torch.float).to(device)
-        outputs.append(model(sim_input.unsqueeze(0).to(device))[:, -1, :])
+        # outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1])
+        inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
+        # inter_output = model(sim_input.unsqueeze(0).to(device)).reshape(2, 5, -1)
+        # inter_output = (inter_output * std) + mean
+        # inter_output = torch.fft.irfft(
+        #     torch.complex(inter_output[0], inter_output[1]), dim=0
+        # )
+        outputs.append(inter_output + sim_input[-1])
+        # outputs.extend([x for x in inter_output])
         outputs = [x.to("cpu") for x in outputs]
 
     outputs = torch.vstack(outputs)
@@ -84,6 +125,25 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device):
         connectome = np.zeros((outputs.shape[1], outputs.shape[1]))
         return connectome
     return connectome[0]
+
+
+def get_rfft_comparison(real, pred):
+    real_fft = torch.fft.rfft(real[:, 0], dim=0)
+    pred_fft = torch.fft.rfft(pred[:, 0], dim=0)
+    fig, axes = plt.subplots(2, 1, figsize=(10, 10))
+    axes = axes.flatten()
+    axes[0].plot(real_fft.real)
+    axes[0].plot(pred_fft.real)
+    # axes[0].xlabel("Real comp")
+    # axes[0].ylabel("mag")
+
+    axes[1].plot(real_fft.imag)
+    axes[1].plot(pred_fft.imag)
+    # axes[1].xlabel("Imag comp")
+    # axes[1].ylabel("mag")
+    plt.tight_layout()
+    fig.savefig("test.svg")
+    plt.close()
 
 
 def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, device):
@@ -130,22 +190,50 @@ def plot_traces(i, test_data, recon, save_path):
         color="steelblue",
         linewidth=0.8,
         label="Original",
-        rasterized=True,
     )
     ax.plot(
         recon,
         color="tomato",
         linewidth=0.8,
         label="Reconstruction",
-        rasterized=True,
     )
     fig.tight_layout(pad=0.5)
     fig.savefig(save_path.joinpath(f"panel_{i}.svg"))
     plt.close(fig)
 
 
+def parallel_plotting(recon, test_data, run, fname):
+
+    n_traces = recon.shape[1]
+    ncols = np.ceil(np.sqrt(n_traces)).astype(int)
+    nrows = np.ceil(n_traces / ncols).astype(int)
+    panel_path = run.joinpath("figures", "panels")
+    panel_path.mkdir(parents=True, exist_ok=True)
+    Parallel(-1, backend="loky")(
+        delayed(plot_traces)(i, test_data[:, i], recon[:, i], panel_path)
+        for i in range(n_traces)
+    )
+    panel_w, panel_h = 600, 200  # must match figsize * dpi (default 100)
+
+    fig = sg.SVGFigure()
+    fig.set_size((f"{ncols * panel_w}px", f"{nrows * panel_h}px"))
+
+    panels = sorted(panel_path.glob("panel_*.svg"))
+    elements = []
+    for idx, path in enumerate(panels):
+        row, col = divmod(idx, ncols)
+        svg = sg.fromfile(str(path))
+        root = svg.getroot()
+        root.moveto(col * panel_w, row * panel_h)
+        elements.append(root)
+
+    fig.append(elements)
+    fig.save(run.joinpath("figures", f"{fname}.svg"))
+    shutil.rmtree(panel_path)
+
+
 def evaluate_on_train_end(
-    cfg: DictConfig | ListConfig, test_data, real_fc, model, label_file
+    cfg: DictConfig | ListConfig, test_data, real_fc, model, label_file, mean, std
 ):
 
     warnings.simplefilter("ignore", FutureWarning)
@@ -166,41 +254,27 @@ def evaluate_on_train_end(
 
     model.eval()
     model.to(cfg.device)
-    model_fc = get_model_fc(model, cfg.data.train.step, 1200, len(labels), cfg.device)
+    model_fc = get_model_fc(
+        model, cfg.data.train.step, 1200, len(labels), cfg.device, mean, std
+    )
     torch.cuda.empty_cache()
 
-    recon, recon_err = get_recon(model, test_data, cfg.data.train.step, cfg.device)
+    recon, recon_err = get_recon(
+        model, test_data, cfg.data.train.step, cfg.device, mean, std
+    )
+    get_rfft_comparison(torch.tensor(test_data), torch.tensor(recon))
     torch.cuda.empty_cache()
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
     pd.DataFrame(recon).to_csv(run.joinpath("recon_signal", "signal.csv"))
     df.at[run.name, "recon_err"] = recon_err
 
-    n_traces = recon.shape[1]
-    ncols = np.ceil(np.sqrt(n_traces)).astype(int)
-    nrows = np.ceil(n_traces / ncols).astype(int)
-    panel_path = run.joinpath("figures", "panels")
-    panel_path.mkdir(parents=True, exist_ok=True)
-    Parallel(-1, backend="loky")(
-        delayed(plot_traces)(i, test_data[:, i], recon[:, i], panel_path)
-        for i in range(n_traces)
+    parallel_plotting(recon, test_data, run, "all_traces")
+    parallel_plotting(
+        np.abs(np.fft.rfft(recon, axis=0)),
+        np.abs(np.fft.rfft(test_data, axis=0)),
+        run,
+        "all_rfft",
     )
-    nrows = np.ceil(n_traces / ncols)
-    panel_w, panel_h = 600, 200  # must match figsize * dpi (default 100)
-
-    fig = sg.SVGFigure()
-    fig.set_size((f"{ncols * panel_w}px", f"{nrows * panel_h}px"))
-
-    panels = sorted(panel_path.glob("panel_*.svg"))
-    elements = []
-    for idx, path in enumerate(panels):
-        row, col = divmod(idx, ncols)
-        svg = sg.fromfile(str(path))
-        root = svg.getroot()
-        root.moveto(col * panel_w, row * panel_h)
-        elements.append(root)
-
-    fig.append(elements)
-    fig.save(run.joinpath("figures", "all_panels.svg"))
     r, p = pearsonr(remove_diag(real_fc), remove_diag(model_fc))
     df.at[run.name, "r"] = r  # type: ignore
     df.at[run.name, "p"] = p  # type: ignore
