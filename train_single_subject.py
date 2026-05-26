@@ -16,6 +16,7 @@ from models import npi_model_getter
 from pytorch_trainer import Trainer
 from utils import (
     SingleSubjectBrainFuncDataset,
+    SingleSubjectFFTFuncDataset,
     evaluate_on_train_end,
     get_loss_fn,
     split_single_subject,
@@ -50,8 +51,19 @@ class SingleSubjectBrainStateTrainer(Trainer):
         super().__init__(cfg, model_getter, get_loss_fn=loss_getter)
         self.num_steps = cfg.model.kwargs.steps
 
+    # def model_forward(self, batch):
+    #     """NPI MLP Model Forward"""
+    #     batch = [x.to(self.cfg.device) for x in batch]
+    #     x, y = batch
+    #     B, N = x.shape
+    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
+    #     y = y.reshape(B, -1, self.cfg.data.num_regions)
+    #     y_hat = self.model(x)
+    #     loss = self.loss_fn(y_hat, y[:, 0, :])
+    #     return loss, B
+
     def model_forward(self, batch):
-        """NPI MLP Model Forward"""
+        """Transformer Model Forward"""
         batch = [x.to(self.cfg.device) for x in batch]
         x, y = batch
         B, N = x.shape
@@ -60,17 +72,6 @@ class SingleSubjectBrainStateTrainer(Trainer):
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y[:, 0, :])
         return loss, B
-
-    # def model_forward(self, batch):
-    #     """Transformer Model Forward"""
-    #     batch = [x.to(self.cfg.device) for x in batch]
-    #     x, y = batch
-    #     B, N = x.shape
-    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-    #     y = y.reshape(B, -1, 360)
-    #     y_hat = self.model(x)
-    #     loss = self.loss_fn(y_hat, y)
-    #     return loss, B
 
     # def after_training(self):
     #     self.model.eval()
@@ -135,15 +136,16 @@ def main(cfg):
     # input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
 
     # Uncomment below to allow for fine tuning on only testing subjects
-    with open("splits/test.json", "r") as f:
+    with open("splits_1000p/val.json", "r") as f:
         data = json.load(f)
-    # input_csv_list = [Path(data[sub]['ses-3T']['file_path'].replace('npi', 'julie')) for sub in data]
-    input_csv_list = [
-        Path(data[sub]["ses-3T"]["file_path"].replace("data_100p", "data_like-npi"))
-        for sub in data
-    ]
-    input_csv_list.sort()
-    for subject in tqdm(input_csv_list):
+    input_csv_list = [data[sub]["ses-3T"] for sub in data]
+    # input_csv_list = [
+    #     Path(data[sub]["ses-3T"]["file_path"].replace("data_100p", "data_like-npi"))
+    #     for sub in data
+    # ]
+    for inp in tqdm(input_csv_list):
+        subject = Path(inp["file_path"])
+        tr = inp["tr"]
         cfg.run_name = subject.name.removesuffix("_cleaned-timeseries.csv")
         trainer = SingleSubjectBrainStateTrainer(cfg, npi_model_getter, get_loss_fn)
 
@@ -156,6 +158,33 @@ def main(cfg):
             subject.with_name(subject.name.replace("cleaned-timeseries", "connectome")),
             index_col=0,
         ).to_numpy()
+        # for predicting fourier
+        # train_loader = TorchDataLoader(
+        #     SingleSubjectFFTFuncDataset(
+        #         train_data,
+        #         cfg.data.train.step,
+        #         noise_strength=cfg.data.noise_strength,
+        #         pred_len=cfg.data.pred_len,
+        #         target_tr=cfg.data.target_tr,
+        #         tr=tr,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=True,
+        # )
+        # test_loader = TorchDataLoader(
+        #     SingleSubjectFFTFuncDataset(
+        #         test_data,
+        #         cfg.data.test.step,
+        #         pred_len=cfg.data.pred_len,
+        #         target_tr=cfg.data.target_tr,
+        #         tr=tr,
+        #         noise_strength=0.0,
+        #         mean=train_loader.dataset.mean,
+        #         std=train_loader.dataset.std,
+        #     ),
+        #     batch_size=cfg.batch_size,
+        #     shuffle=False,
+        # )
         # single subject brain func
         train_loader = TorchDataLoader(
             SingleSubjectBrainFuncDataset(
@@ -163,6 +192,8 @@ def main(cfg):
                 cfg.data.train.step,
                 noise_strength=cfg.data.noise_strength,
                 pred_len=cfg.data.pred_len,
+                target_tr=cfg.data.target_tr,
+                tr=tr,
             ),
             batch_size=cfg.batch_size,
             shuffle=True,
@@ -171,10 +202,10 @@ def main(cfg):
             SingleSubjectBrainFuncDataset(
                 test_data,
                 cfg.data.test.step,
+                pred_len=cfg.data.pred_len,
+                target_tr=cfg.data.target_tr,
+                tr=tr,
                 noise_strength=0.0,
-                # mean=train_loader.dataset.mean,
-                # std=train_loader.dataset.std,
-                # scaler=train_loader.dataset.scaler # type: ignore
             ),
             batch_size=cfg.batch_size,
             shuffle=False,
@@ -231,10 +262,14 @@ def main(cfg):
             evaluate_on_train_end(
                 cfg,
                 # train_loader.dataset.scaler.transform(test_data), # type: ignore
-                test_data,
+                train_data,
                 fc,
                 trainer.model,
-                label_file="region_labels.txt",
+                label_file="1000p_labels.txt",
+                # mean=train_loader.dataset.mean,
+                # std=train_loader.dataset.std,
+                mean=torch.tensor(0),
+                std=torch.tensor(1),
             )
 
 

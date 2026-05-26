@@ -11,15 +11,17 @@ from .dataset import (
     SingleSubjectBrainFuncDataset,
     SingleSubjectBrainFuncGCNDataset,
     SingleSubjectBrainFuncSTGCNDataset,
+    SingleSubjectFFTFuncDataset,
 )
 from .evaluate import evaluate_on_train_end
-from .loss_fns import MSEFCLoss, RealImagMSE, ReconFourierLoss
+from .loss_fns import MSE1DLoss, MSEFCLoss, RealImagMSE, ReconFourierLoss
 from .make_datasplits import split_single_subject
 
 __all__ = [
     "SingleSubjectBrainFuncDataset",
     "SingleSubjectBrainFuncGCNDataset",
     "SingleSubjectBrainFuncSTGCNDataset",
+    "SingleSubjectFFTFuncDataset",
     "split_single_subject",
     "get_loss_fn",
     "evaluate_on_train_end",
@@ -65,5 +67,6 @@ get_loss_fn = LossGetter(
         "real_img_loss": RealImagMSE,
         "mse_fc_loss": MSEFCLoss,
         "mse_fourier_loss": ReconFourierLoss,
+        "mse_first_loss": MSE1DLoss,
     }
 )

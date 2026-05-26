@@ -53,8 +53,15 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
                     torch.tensor(bold_data[i : i + step], dtype=torch.float).flatten()
                 )
                 out = torch.tensor(
-                    bold_data[i + 1 : i + step + pred_len], dtype=torch.float
+                    bold_data[i + step] - bold_data[i + step - 1], dtype=torch.float
                 ).flatten()
+                # out = torch.tensor(
+                #     bold_data[i + 1 : i + step + 1] - bold_data[i : i + step],
+                #     dtype=torch.float,
+                # ).flatten()
+                # out = torch.tensor(
+                #     bold_data[i + step : i + step + pred_len], dtype=torch.float
+                # ).flatten()
                 # out = torch.fft.rfft(out, dim=0)
                 # out = torch.stack([out.real, out.imag], dim=0)
                 self.outputs.append(out)
@@ -66,6 +73,66 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
         #     self.mean = mean
         #     self.std = std
         # self.outputs = (self.outputs - self.mean) / torch.clamp(self.std, min=1e-9)
+
+    def __len__(self):
+        return len(self.inputs)
+
+    def __getitem__(self, idx):
+        inp = self.inputs[idx]
+        out = self.outputs[idx]
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+        return inp + inp_noise, out
+
+
+class SingleSubjectFFTFuncDataset(TorchDataset):
+    def __init__(
+        self,
+        bold_data: np.ndarray,
+        step: int,
+        noise_strength: float = 0.1,
+        pred_len: int = 1,
+        tr: float | None = None,
+        target_tr: float | None = None,
+        mean: torch.Tensor | float = 0,
+        std: torch.Tensor | float = 1,
+    ):
+        super().__init__()
+
+        self.inputs = []
+        self.outputs = []
+        self.strength = noise_strength
+        self.mean = mean
+        self.std = std
+        data_length = bold_data.shape[0]
+
+        if target_tr is not None:
+            assert tr is not None, "Tr must be specified to resample timeseries"
+            new_len = int((data_length * tr) / target_tr)
+            bold_data = signal.resample(bold_data, new_len, axis=0)  # type: ignore
+            data_length = bold_data.shape[0]
+
+        for i in range(data_length):
+            if (i + step + pred_len) <= data_length:
+                self.inputs.append(
+                    torch.tensor(bold_data[i : i + step], dtype=torch.float).flatten()
+                )
+                out = torch.tensor(bold_data[i + 1 : i + step + 1], dtype=torch.float)
+                # out = torch.tensor(
+                #     bold_data[i + step : i + step + pred_len], dtype=torch.float
+                # )
+                out = torch.fft.rfft(out, dim=0)
+                out = torch.stack([out.real, out.imag], dim=0)
+                self.outputs.append(out)
+
+        self.outputs = torch.stack(self.outputs, dim=0)  # B, Real/Imag, Coeffs, Region
+        if not isinstance(self.mean, torch.Tensor) and not isinstance(
+            self.std, torch.Tensor
+        ):
+            self.mean = self.outputs.mean(dim=0)
+            self.std = self.outputs.std(dim=0)
+            self.outputs = (self.outputs - self.mean) / (self.std + 1e-8)
+        else:
+            self.outputs = (self.outputs - self.mean) / (self.std + 1e-8)
 
     def __len__(self):
         return len(self.inputs)
