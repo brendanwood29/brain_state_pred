@@ -1,20 +1,18 @@
 import json
-import numpy as np
-import pandas as pd
 from pathlib import Path
 
-STRICT_TRAIN_TEST = False # If true, prevents training and testing having the same datasets
+import numpy as np
+import pandas as pd
+
+STRICT_TRAIN_TEST = (
+    False  # If true, prevents training and testing having the same datasets
+)
 TRAIN_SPLIT = 0.7
 VAL_SPLIT = 0.1
-TRAIN_SETS = [
-    'hcp'
-]
-VAL_SETS = [
-    'hcp'
-]
-TEST_SETS = [
-    'hcp'
-]
+TRAIN_SETS = ["hcp"]
+VAL_SETS = ["hcp"]
+TEST_SETS = ["hcp"]
+
 
 def split_train_val_test(subjects):
     subjects = np.array(subjects)
@@ -42,25 +40,24 @@ def split_train_val(subjects):
     val_idx = indices[split_idx:]
 
     return subjects[train_idx], subjects[val_idx]
-    
+
 
 def split_by_subjects(data_dir, splits):
     train = {}
     val = {}
     test = {}
-    
-    for dataset in data_dir.glob('*.json'):
-        
-        name = dataset.name.removesuffix('.json')
-        with open(dataset, 'r') as f:
+
+    for dataset in data_dir.glob("*.json"):
+        name = dataset.name.removesuffix(".json")
+        with open(dataset, "r") as f:
             data = json.load(f)
-        
+
         if STRICT_TRAIN_TEST:
             if name in TRAIN_SETS and name in TEST_SETS:
-                raise ValueError(f'{name} in train and test sets')
+                raise ValueError(f"{name} in train and test sets")
             if name in VAL_SETS and name in TEST_SETS:
-                raise ValueError(f'{name} in val and test sets')
-        
+                raise ValueError(f"{name} in val and test sets")
+
         if name in TRAIN_SETS and name in VAL_SETS and name in TEST_SETS:
             train_subs, val_subs, test_subs = split_train_val_test(list(data.keys()))
             train.update((sub, data[sub]) for sub in train_subs)
@@ -76,32 +73,29 @@ def split_by_subjects(data_dir, splits):
             val.update((sub, data[sub]) for sub in data.keys())
         else:
             test.update((sub, data[sub]) for sub in data.keys())
-    
-    with open(splits.joinpath('train.json'), 'w') as f:
+
+    with open(splits.joinpath("train.json"), "w") as f:
         json.dump(train, f, indent=4)
-    with open(splits.joinpath('val.json'), 'w') as f:
+    with open(splits.joinpath("val.json"), "w") as f:
         json.dump(val, f, indent=4)
-    with open(splits.joinpath('test.json'), 'w') as f:
+    with open(splits.joinpath("test.json"), "w") as f:
         json.dump(test, f, indent=4)
-        
+
 
 def split_single_subject(data_path, train_proportion):
-    
+
     bold_data = pd.read_csv(data_path, index_col=0).to_numpy()
     bold_data = bold_data[30:, :]
     data_length = bold_data.shape[0]
-    
-    return bold_data[:int(train_proportion * data_length), :], bold_data[int(train_proportion * data_length):, :]
 
-    
+    return bold_data[: int(train_proportion * data_length), :], bold_data[
+        int(train_proportion * data_length) :, :
+    ]
 
-if __name__ == '__main__':
-    
-    data_dir = Path('data_100p')
-    splits = Path('splits')
+
+if __name__ == "__main__":
+    data_dir = Path("data_1000p")
+    splits = Path("splits_1000p")
     splits.mkdir(parents=True, exist_ok=True)
-    
-    split_by_subjects(data_dir, splits)
-    
 
-        
+    split_by_subjects(data_dir, splits)
