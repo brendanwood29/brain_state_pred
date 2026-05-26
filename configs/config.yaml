@@ -18,14 +18,14 @@ loss:
 grad_clip:
   max_norm: 1.0
 # scheduler: null
-scheduler:   
-  name: onecycle
-  kwargs:
-    max_lr: ${optim.lr}
-    # total_steps: 1000 
-    steps_per_epoch: 236
-    epochs: ${num_epochs}
-    pct_start: 0.1
+scheduler: null
+  # name: onecycle
+  # kwargs:
+  #   max_lr: ${optim.lr}
+  #   # total_steps: 1000 
+  #   steps_per_epoch: 236
+  #   epochs: ${num_epochs}
+  #   pct_start: 0.1
 model: 
   name: transformer
   print_summary: true

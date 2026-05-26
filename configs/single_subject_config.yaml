@@ -2,7 +2,7 @@ num_epochs: 300
 batch_size: 82
 device: cuda:0
 run_name: run_1
-work_dir: results/TEST
+work_dir: results/diff_test/test_1
 seed: 42
 # batch_pbar: true
 optim:
@@ -12,10 +12,19 @@ optim:
     weight_decay: 5e-4
 loss:
   name: mse_loss
+  # name: mse_fourier_loss
+  # kwargs:
+  #   recon_weight: 0.1  
+  #   fourier_weight: 1.0
+  #   freq_weights: [0.1, 1, 1, 1, 1]
   # name: mse_fc_loss
   # kwargs:
-  #   mse_weight: 1.0
-  #   fc_weight: 0.01
+  #   mse_weight: 0.5
+  #   fc_weight: 0.5
+  # name: mse_first_loss
+  # kwargs:
+  #   recon_weight: 0.25
+  #   first_weight: 0.75  
 grad_clip:
   max_norm: 1.0
 # scheduler: null
@@ -45,7 +54,7 @@ model:
     # strict: false
 ########## Transformer with lora
   kwargs:
-    in_features: 360
+    in_features: 1000
     num_heads: 2
     steps: 8
     num_blocks: 1
@@ -53,16 +62,17 @@ model:
     attn_drop_prob: 0.25
     final_drop_prob: 0.25
     ffn_dropout: 0.25
+    pred_len: ${data.pred_len}
     # use_lora: true
     # alpha: 64
     # r: 64
-########### idk
-  # kwargs: 
-  #   input_size: 360
-  #   hidden_size: 128
-  #   num_layers: 1
-  #   steps: 15
-    # proj_size: 360
+######### NPI MLP
+  # kwargs:
+  #   input_dim: 3000
+  #   hidden_dim: 2000
+  #   latent_dim: 800
+  #   output_dim: 1000
+  #   steps: 3
 ########## GCN
   # kwargs: 
   #   num_features: 20
@@ -79,21 +89,16 @@ model:
   #   in_features: 1
   #   hidden_dim: 10
   #   out_features: 1
-########## NPI MLP
-  # kwargs:
-  #   input_dim: 1080
-  #   hidden_dim: 720
-  #   latent_dim: 288
-  #   output_dim: 360
-  #   steps: 3
-  #   device: ${device}
 callbacks:
   use_early_stopping: false
   patience: 5
   threshold: 0.0001
 data:
   train_proportion: 0.8
-  noise_strength: 0.2
+  noise_strength: 1.0
+  pred_len: 8
+  target_tr: 2
+  num_regions: 1000
   train: 
     step: ${model.kwargs.steps}
     # threshold: 0.8
