@@ -3,7 +3,8 @@
 {
 	"name": "Ubuntu",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:noble",
+	// "image": "mcr.microsoft.com/devcontainers/base:noble",
+	"image": "nvidia/cuda:12.0.0-devel-ubuntu22.04",
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -35,7 +36,7 @@
 		"--memory-swap=8G", 
 		"--shm-size=256G",
 		"--hostname", "brain_state_pred"
-	]
+	],
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
