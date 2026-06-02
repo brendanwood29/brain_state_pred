@@ -1,5 +1,21 @@
+import torch
 import torch.nn as nn
 from mamba_ssm import Mamba
+
+
+class TrainableRegionEmbedding(nn.Module):
+    def __init__(self, in_features: int, steps: int):
+        super().__init__()
+        self.pos_embed = nn.Embedding(in_features, 1)
+        self.temp_embed = nn.Embedding(steps, 1)
+        self.pos = torch.arange(0, in_features)
+        self.temp = torch.arange(0, steps)
+
+    def forward(self, x):
+        device = x.device
+        pos_embed = self.pos_embed(self.pos.to(device)).unsqueeze(0)
+        temp_embed = self.temp_embed(self.temp.to(device)).unsqueeze(0)
+        return x + pos_embed.permute(0, 2, 1).to(device) + temp_embed.to(device)
 
 
 class MambaModel(nn.Module):
@@ -17,20 +33,20 @@ class MambaModel(nn.Module):
         super().__init__()
 
         # self.proj_in = nn.Linear(d_model, d_model)
+        # self.layer_norm_in = nn.LayerNorm([steps, d_model])
+        # self.region_embed = TrainableRegionEmbedding(d_model, steps)
         self.blocks = nn.ModuleList(
             [Mamba(d_model, d_state, d_conv, expand) for _ in range(num_blocks)]
         )
-        # self.proj_out = nn.Linear(d_model, d_model)
         self.drop = nn.Dropout(dropout)
-        self.layer_norm = nn.LayerNorm([steps, d_model])
+        self.layer_norm_out = nn.LayerNorm([steps, d_model])
 
     def forward(self, x):
-
-        # x_in = self.proj_in(x)
-        # for block in self.blocks:
-        #     x_in = self.drop(block(x_in))
-        # x_out = x + self.proj_out(x_in)
+        B, T, R = x.shape
+        # x = self.layer_norm_in(x)
+        # x = self.region_embed(x)
         for block in self.blocks:
             x = x + self.drop(block(x))
-        x = self.layer_norm(x)
+        x = self.layer_norm_out(x)
+
         return x[:, [-1], :]

@@ -46,7 +46,9 @@ class SingleSubjectBrainFuncRecursiveDataset(TorchDataset):
             bold_data = scaler.transform(bold_data)
         self.bold_data = torch.tensor(bold_data, dtype=torch.float)
 
-        self.idxs = [(x, x + step) for x in range(step, data_length - step)]
+        self.idxs = [
+            (x, x + step) for x in range(step, data_length - step)
+        ]  # Start at step so we can go back in time to the start of the sequence
 
     @property
     def data(self):
@@ -60,6 +62,7 @@ class SingleSubjectBrainFuncRecursiveDataset(TorchDataset):
         inp = self.bold_data[start:end].flatten()
         prev_inp = self.bold_data[start - self.step : start].flatten()
         out = self.bold_data[[end]]
+        # out = self.bold_data[start + 1 : end + 1].flatten()
         inp_noise = torch.normal(0, self.strength, inp.shape)
         return inp + inp_noise, out, prev_inp
 
@@ -104,7 +107,7 @@ class SingleSubjectBrainFuncDataset(TorchDataset):
                 self.inputs.append(
                     torch.tensor(bold_data[i : i + step], dtype=torch.float).flatten()
                 )
-                out = torch.tensor(bold_data[i + 1], dtype=torch.float).unsqueeze(0)
+                out = torch.tensor(bold_data[i + step], dtype=torch.float).unsqueeze(0)
                 # out = torch.tensor(
                 #     bold_data[i + step] - bold_data[i + step - 1], dtype=torch.float
                 # ).flatten()
