@@ -10,6 +10,7 @@ from .dataset import (
     BrainFuncGCNDataset,
     SingleSubjectBrainFuncDataset,
     SingleSubjectBrainFuncGCNDataset,
+    SingleSubjectBrainFuncRecursiveDataset,
     SingleSubjectBrainFuncSTGCNDataset,
     SingleSubjectFFTFuncDataset,
 )
@@ -19,6 +20,7 @@ from .make_datasplits import split_single_subject
 
 __all__ = [
     "SingleSubjectBrainFuncDataset",
+    "SingleSubjectBrainFuncRecursiveDataset",
     "SingleSubjectBrainFuncGCNDataset",
     "SingleSubjectBrainFuncSTGCNDataset",
     "SingleSubjectFFTFuncDataset",
