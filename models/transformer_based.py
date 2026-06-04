@@ -396,8 +396,8 @@ class TransformerModel(nn.Module):
         # outputs = torch.stack(outputs[-self.pred_len :], dim=1)
         # return outputs
 
-        x = self.model(x)[:, -1, :]
-        return x
+        x = self.model(x)
+        return x[:, [-1], :]
 
 
 if __name__ == "__main__":
