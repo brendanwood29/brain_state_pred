@@ -60,8 +60,70 @@ class SingleSubjectBrainFuncRecursiveDataset(TorchDataset):
     def __getitem__(self, idx):
         start, end = self.idxs[idx]
         inp = self.bold_data[start:end].flatten()
-        prev_inp = self.bold_data[[start - self.step]]
+        prev_inp = self.bold_data[start - self.step : start].flatten()
         out = self.bold_data[[end]]
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+        return inp + inp_noise, out, prev_inp
+
+
+class BrainFuncRecursiveDataset(TorchDataset):
+    def __init__(
+        self,
+        split_path: str | Path,
+        step: int,
+        noise_strength: float = 0.1,
+        target_tr: float | None = None,
+    ):
+        super().__init__()
+
+        self.inputs = []
+        self.priors = []
+        self.outputs = []
+        self.strength = noise_strength
+        self.step = step
+
+        with open(split_path, "r") as f:
+            data = json.load(f)
+
+        for subject in data:
+            for ses in data[subject]:
+                bold_data = pd.read_csv(
+                    data[subject][ses]["file_path"], index_col=0
+                ).to_numpy()
+
+                data_length = bold_data.shape[0]
+                if target_tr is not None:
+                    assert data[subject][ses]["tr"] is not None, (
+                        "Tr must be specified to resample timeseries"
+                    )
+                    new_len = int((data_length * data[subject][ses]["tr"]) / target_tr)
+                    bold_data = signal.resample(bold_data, new_len, axis=0)  # type: ignore
+                    data_length = bold_data.shape[0]
+
+                for i in range(step, data_length - step):
+                    self.inputs.append(
+                        torch.tensor(
+                            bold_data[i : i + step], dtype=torch.float
+                        ).flatten()
+                    )
+                    self.outputs.append(
+                        torch.tensor(bold_data[[i + step]], dtype=torch.float)
+                    )
+                    self.priors.append(
+                        torch.tensor(
+                            bold_data[i - step : i], dtype=torch.float
+                        ).flatten()
+                    )
+
+    # TODO add a scaler here
+
+    def __len__(self):
+        return len(self.inputs)
+
+    def __getitem__(self, idx):
+        inp = self.inputs[idx]
+        out = self.outputs[idx]
+        prev_inp = self.priors[idx]
         inp_noise = torch.normal(0, self.strength, inp.shape)
         return inp + inp_noise, out, prev_inp
 
