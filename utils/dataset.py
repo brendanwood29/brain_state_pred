@@ -213,8 +213,9 @@ class BrainFuncDataset(TorchDataset):
         self.outputs = []
         with open(split_path, "r") as f:
             data = json.load(f)
-
-        for subject in data:  # TODO make this handle longitudinal data, or figure out a good way to deal with it
+        # TODO make this handle longitudinal data, or figure out a
+        # good way to deal with it
+        for subject in data:
             for ses in data[subject]:
                 bold_data = pd.read_csv(
                     data[subject][ses]["file_path"], index_col=0
