@@ -38,15 +38,19 @@ class MambaModel(nn.Module):
         self.blocks = nn.ModuleList(
             [Mamba(d_model, d_state, d_conv, expand) for _ in range(num_blocks)]
         )
+        self.norms = nn.ModuleList(
+            [nn.LayerNorm([steps, d_model]) for _ in range(num_blocks)]
+        )
         self.drop = nn.Dropout(dropout)
-        self.layer_norm_out = nn.LayerNorm([steps, d_model])
+        # self.layer_norm_out = nn.LayerNorm([steps, d_model])
 
     def forward(self, x):
         B, T, R = x.shape
         # x = self.layer_norm_in(x)
         # x = self.region_embed(x)
-        for block in self.blocks:
+        for block, norm in zip(self.blocks, self.norms):
             x = x + self.drop(block(x))
-        x = self.layer_norm_out(x)
+            x = norm(x)
+        # x = self.layer_norm_out(x)
 
         return x[:, [-1], :]
