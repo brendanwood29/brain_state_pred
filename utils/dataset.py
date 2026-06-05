@@ -60,9 +60,8 @@ class SingleSubjectBrainFuncRecursiveDataset(TorchDataset):
     def __getitem__(self, idx):
         start, end = self.idxs[idx]
         inp = self.bold_data[start:end].flatten()
-        prev_inp = self.bold_data[start - self.step : start].flatten()
+        prev_inp = self.bold_data[[start - self.step]]
         out = self.bold_data[[end]]
-        # out = self.bold_data[start + 1 : end + 1].flatten()
         inp_noise = torch.normal(0, self.strength, inp.shape)
         return inp + inp_noise, out, prev_inp
 
