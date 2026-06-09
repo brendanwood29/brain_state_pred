@@ -1,15 +1,15 @@
 from pathlib import Path
 
-from torch.utils.data import DataLoader as TorchDataLoader
 from torch_geometric.loader import DataLoader as PyGDataLoader
 
 from pytorch_trainer import LossGetter
 
 from .dataset import (
-    BrainFuncDataset,
     BrainFuncGCNDataset,
+    BrainFuncRecursiveDataset,
     SingleSubjectBrainFuncDataset,
     SingleSubjectBrainFuncGCNDataset,
+    SingleSubjectBrainFuncRecursiveDataset,
     SingleSubjectBrainFuncSTGCNDataset,
     SingleSubjectFFTFuncDataset,
 )
@@ -19,30 +19,15 @@ from .make_datasplits import split_single_subject
 
 __all__ = [
     "SingleSubjectBrainFuncDataset",
+    "SingleSubjectBrainFuncRecursiveDataset",
     "SingleSubjectBrainFuncGCNDataset",
     "SingleSubjectBrainFuncSTGCNDataset",
     "SingleSubjectFFTFuncDataset",
+    "BrainFuncRecursiveDataset",
     "split_single_subject",
     "get_loss_fn",
     "evaluate_on_train_end",
 ]
-
-
-def get_loader(
-    data_path: str | Path,
-    step: int,
-    strength: float,
-    batch_size=64,
-    shuffle=True,
-    **kwargs,
-):
-
-    return TorchDataLoader(
-        BrainFuncDataset(data_path, step, strength),
-        batch_size=batch_size,
-        shuffle=shuffle,
-        **kwargs,
-    )
 
 
 def get_pyg_loader(

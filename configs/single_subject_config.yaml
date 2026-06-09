@@ -16,7 +16,6 @@ loss:
   # kwargs:
   #   recon_weight: 0.1
   #   fourier_weight: 1.0
-  #   freq_weights: [0.1, 1, 1, 1, 1]
   # name: mse_fc_loss
   # kwargs:
   #   mse_weight: 0.5
@@ -41,7 +40,7 @@ scheduler: null
 model:
   name: npi_mlp
   print_summary: true
-  num_models_to_save: 5
+  num_models_to_save: 2
   save_last: true
   # freeze_modules:
   #   - model
@@ -86,13 +85,26 @@ model:
 # kwargs:
 #   num_features: 20
 #   hidden_dim: 128
+# kwargs:
+#   num_features: 20
+#   hidden_dim: 128
 ######### GCTN
 # kwargs:
 #   in_channels: 20
 #   out_channels: 1
 #   heads: 12
 #   dropout: 0.0
+# kwargs:
+#   in_channels: 20
+#   out_channels: 1
+#   heads: 12
+#   dropout: 0.0
 ########## STGCN
+# kwargs:
+#   num_nodes: 360
+#   in_features: 1
+#   hidden_dim: 10
+#   out_features: 1
 # kwargs:
 #   num_nodes: 360
 #   in_features: 1
