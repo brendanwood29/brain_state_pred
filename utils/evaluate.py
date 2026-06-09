@@ -46,7 +46,7 @@ def bandpass(data, low, high, fs, order=4):
     ny = fs / 2
     low = low / ny
     high = high / ny
-    b, a = signal.butter(order, high, btype="lowpass")
+    b, a = signal.butter(order, high, btype="lowpass")  # type: ignore
     return signal.filtfilt(b, a, data, axis=0).copy()
 
 
@@ -70,7 +70,7 @@ def get_recon(model, real_data, steps, device, mean, std):
         # inter_output = torch.fft.irfft(
         #     torch.complex(inter_output[0], inter_output[1]), dim=0
         # )
-        outputs.append(inter_output + sim_input[-1])
+        outputs.append(inter_output[-1])
         # outputs.extend([x for x in inter_output])
         # outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1, :])
         # outputs.extend([x for x in model(sim_input.unsqueeze(0).to(device)).squeeze(0)])
@@ -79,11 +79,7 @@ def get_recon(model, real_data, steps, device, mean, std):
     # outputs = bandpass(outputs, 0.01, 0.1, 0.5)
     real_data = real_data.cpu().numpy()
     return outputs, np.mean(
-        (
-            real_data[steps + 1 : outputs.shape[0]]
-            - outputs[steps + 1 : real_data.shape[0]]
-        )
-        ** 2
+        (real_data[steps : outputs.shape[0]] - outputs[steps : real_data.shape[0]]) ** 2
     )
 
 
@@ -110,7 +106,7 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
         # inter_output = torch.fft.irfft(
         #     torch.complex(inter_output[0], inter_output[1]), dim=0
         # )
-        outputs.append(inter_output + sim_input[-1])
+        outputs.append(inter_output[-1])
         # outputs.extend([x for x in inter_output])
         outputs = [x.to("cpu") for x in outputs]
 
@@ -125,25 +121,6 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
         connectome = np.zeros((outputs.shape[1], outputs.shape[1]))
         return connectome
     return connectome[0]
-
-
-def get_rfft_comparison(real, pred):
-    real_fft = torch.fft.rfft(real[:, 0], dim=0)
-    pred_fft = torch.fft.rfft(pred[:, 0], dim=0)
-    fig, axes = plt.subplots(2, 1, figsize=(10, 10))
-    axes = axes.flatten()
-    axes[0].plot(real_fft.real)
-    axes[0].plot(pred_fft.real)
-    # axes[0].xlabel("Real comp")
-    # axes[0].ylabel("mag")
-
-    axes[1].plot(real_fft.imag)
-    axes[1].plot(pred_fft.imag)
-    # axes[1].xlabel("Imag comp")
-    # axes[1].ylabel("mag")
-    plt.tight_layout()
-    fig.savefig("test.svg")
-    plt.close()
 
 
 def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, device):
@@ -183,7 +160,7 @@ def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, 
     return connectome[0]
 
 
-def plot_traces(i, test_data, recon, save_path):
+def plot_traces(i, test_data, recon, save_path, input_len=None):
     fig, ax = plt.subplots(figsize=(6, 2))
     ax.plot(
         test_data,
@@ -197,12 +174,14 @@ def plot_traces(i, test_data, recon, save_path):
         linewidth=0.8,
         label="Reconstruction",
     )
+    if input_len is not None:
+        ax.axvline(x=7, color="r", ls="dashed")
     fig.tight_layout(pad=0.5)
     fig.savefig(save_path.joinpath(f"panel_{i}.svg"))
     plt.close(fig)
 
 
-def parallel_plotting(recon, test_data, run, fname):
+def parallel_plotting(recon, test_data, run, fname, input_len=None):
 
     n_traces = recon.shape[1]
     ncols = np.ceil(np.sqrt(n_traces)).astype(int)
@@ -210,7 +189,9 @@ def parallel_plotting(recon, test_data, run, fname):
     panel_path = run.joinpath("figures", "panels")
     panel_path.mkdir(parents=True, exist_ok=True)
     Parallel(-1, backend="loky")(
-        delayed(plot_traces)(i, test_data[:, i], recon[:, i], panel_path)
+        delayed(plot_traces)(
+            i, test_data[:, i], recon[:, i], panel_path, input_len=input_len
+        )
         for i in range(n_traces)
     )
     panel_w, panel_h = 600, 200  # must match figsize * dpi (default 100)
@@ -262,13 +243,14 @@ def evaluate_on_train_end(
     recon, recon_err = get_recon(
         model, test_data, cfg.data.train.step, cfg.device, mean, std
     )
-    get_rfft_comparison(torch.tensor(test_data), torch.tensor(recon))
     torch.cuda.empty_cache()
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
     pd.DataFrame(recon).to_csv(run.joinpath("recon_signal", "signal.csv"))
     df.at[run.name, "recon_err"] = recon_err
 
-    parallel_plotting(recon, test_data, run, "all_traces")
+    parallel_plotting(
+        recon, test_data, run, "all_traces", input_len=cfg.data.train.step
+    )
     parallel_plotting(
         np.abs(np.fft.rfft(recon, axis=0)),
         np.abs(np.fft.rfft(test_data, axis=0)),

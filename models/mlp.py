@@ -19,7 +19,7 @@ class ANN_MLP(nn.Module):
     def forward(self, x):
         B, T, R = x.shape
         x = x.reshape(B, T * R)
-        return self.func(x)
+        return self.func(x).reshape(B, -1, R)
 
 
 class MLP(nn.Module):
