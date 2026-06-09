@@ -15,9 +15,7 @@ from tqdm import tqdm
 from models import npi_model_getter
 from pytorch_trainer import Trainer
 from utils import (
-    SingleSubjectBrainFuncDataset,
     SingleSubjectBrainFuncRecursiveDataset,
-    SingleSubjectFFTFuncDataset,
     evaluate_on_train_end,
     get_loss_fn,
     split_single_subject,
@@ -49,12 +47,15 @@ def get_config() -> ListConfig | DictConfig:
 
 def delay_signal(x, prev_x, num_steps, num_steps_back):
     comb = torch.cat([prev_x, x], dim=1)
-    delayed_signals = [
-        comb[:, -num_steps - step : -step, :] for step in range(1, num_steps_back + 1)
-    ]
-    delayed_signals = list(
-        reversed(delayed_signals)
-    )  # Reverse so list is oldest to newest
+    # delayed_signals = [
+    #     comb[:, -num_steps - step : -step, :] for step in range(1, num_steps_back + 1)
+    # ]
+    delayed_signals = comb[
+        :, -num_steps - num_steps_back : -num_steps_back, :
+    ]  # Just get the most in the past signal
+    # delayed_signals = list(
+    #     reversed(delayed_signals)
+    # )  # Reverse so list is oldest to newest
     return delayed_signals
 
 
@@ -63,49 +64,25 @@ class SingleSubjectBrainStateTrainer(Trainer):
         super().__init__(cfg, model_getter, get_loss_fn=loss_getter)
         self.num_steps = cfg.model.kwargs.steps
 
-    # def model_forward(self, batch):
-    #     """NPI MLP Model Forward"""
-    #     batch = [x.to(self.cfg.device) for x in batch]
-    #     x, y = batch
-    #     B, N = x.shape
-    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-    #     y = y.reshape(B, -1, self.cfg.data.num_regions)
-    #     y_hat = self.model(x)
-    #     loss = self.loss_fn(y_hat, y[:, 0, :])
-    #     return loss, B
-
-    # def model_forward(self, batch):
-    #     """Transformer Model Forward"""
-    #     batch = [x.to(self.cfg.device) for x in batch]
-    #     x, y, prev = batch
-    #     B, N = x.shape
-    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-    #     prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
-    #     y = y.reshape(B, -1, self.cfg.data.num_regions)
-    #     x = self.schedule_recursion(x, prev)
-    #     y_hat = self.model(x)
-    #     loss = self.loss_fn(y_hat, y)
-    #     return loss, B
-
     def model_forward(self, batch):
-        """Mamba Model Forward"""
+        """Mamba/transformer/mlp Model Forward"""
         batch = [x.to(self.cfg.device) for x in batch]
         x, y, prev = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
         y = y.reshape(B, -1, self.cfg.data.num_regions)
-        self.model.eval()
-        x = self.schedule_recursion(x, prev)
-        self.model.train()
+        # self.model.eval()
+        # x = self.schedule_recursion(x, prev)
+        # self.model.train()
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
 
     @torch.no_grad()
     def schedule_recursion(self, x, prev):
-        k_include = 20
-        k_num = 50
+        k_include = self.cfg.k
+        k_num = self.cfg.k
         prob_include = 1 - (
             k_include / (k_include + torch.e ** (self.step / k_include))
         )
@@ -113,7 +90,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
 
         if self.current_mode == "Train":
             if torch.rand(1).item() < prob_include:
-                if 0.2 <= prob_num < 0.3:
+                if prob_num < 0.3:
                     num_steps_back = 1
                 elif 0.3 <= prob_num < 0.4:
                     num_steps_back = 2
@@ -131,16 +108,23 @@ class SingleSubjectBrainStateTrainer(Trainer):
                     num_steps_back = 8
                 else:
                     return x
-                print(f"\nincluding {num_steps_back}")
                 b, t, r = x.shape
                 delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
-                delayed_signals = torch.stack(delayed_signals, dim=0).reshape(-1, t, r)
-                prev_outs = self.model(delayed_signals).reshape(-1, b, 1, r)
-                prev_outs = torch.cat(
-                    # [self.model(inp) for inp in delayed_signals],
-                    [out for out in prev_outs],
-                    dim=1,
-                )
+                # delayed_signals = torch.stack(delayed_signals, dim=0).reshape(-1, t, r)
+                prior_outs = [self.model(delayed_signals)]
+                for i in range(1, num_steps_back):
+                    prior_outs.append(
+                        self.model(
+                            torch.cat(
+                                tensors=[
+                                    delayed_signals[:, i:, :],
+                                    torch.cat(prior_outs[:i], dim=1),
+                                ],
+                                dim=1,
+                            )
+                        )
+                    )
+                prev_outs = torch.cat(prior_outs, dim=1)
                 x[:, -num_steps_back:, :] = prev_outs
                 return x
 
@@ -150,37 +134,22 @@ class SingleSubjectBrainStateTrainer(Trainer):
             b, t, r = x.shape
             delayed_signals = delay_signal(x, prev, self.num_steps, self.num_steps)
             # prev_outs = torch.cat([self.model(inp) for inp in delayed_signals], dim=1)
-            delayed_signals = torch.stack(delayed_signals, dim=0).reshape(-1, t, r)
-            prev_outs = self.model(delayed_signals).reshape(-1, b, 1, r)
-            prev_outs = torch.cat(
-                [out for out in prev_outs],
-                dim=1,
-            )
+            prior_outs = [self.model(delayed_signals)]
+            for i in range(1, self.num_steps):
+                prior_outs.append(
+                    self.model(
+                        torch.cat(
+                            tensors=[
+                                delayed_signals[:, i:, :],
+                                torch.cat(prior_outs[:i], dim=1),
+                            ],
+                            dim=1,
+                        )
+                    )
+                )
+            prev_outs = torch.cat(prior_outs, dim=1)
             x[:, -self.num_steps :, :] = prev_outs
             return x
-
-    # def model_forward(self, batch):
-    # """GCN Model Forward"""
-    #     batch = batch.to(self.cfg.device)
-    #     y_hat = self.model(batch.x,  batch.edge_index, batch.edge_attr.unsqueeze(-1), batch.batch)
-    #     loss = self.loss_fn(y_hat, batch.y)
-    #     return loss, batch.num_graphs
-
-    # def model_forward(self, batch):
-    # """STGCN Model Forward"""
-    #     batch = [x.to(self.cfg.device) for x in batch]
-    #     x, y, idx, weights = batch
-    #     y_hat = self.model(x, idx[0, ...], weights[0, ...])
-    #     loss = self.loss_fn(y_hat, y)
-    #     return loss, x.shape[0]
-
-
-# def reconstruct_signal(coeff, mean, std):
-#     coeff = (coeff * std.unsqueeze(1)) + mean.unsqueeze(1)
-#     if not coeff.is_complex():
-#         coeff = torch.complex(coeff[0], coeff[1])
-#     signal = torch.fft.irfft(coeff, n=20, dim=1)
-#     return signal
 
 
 def main(cfg):
@@ -188,16 +157,10 @@ def main(cfg):
     if cfg.seed is not None:
         fix_seeds(42)
 
-    # input_csv_list = list(Path('data_like-npi/hcp').rglob('**/*timeseries.csv'))
-
     # Uncomment below to allow for fine tuning on only testing subjects
-    with open("splits_1000p/val.json", "r") as f:
+    with open("splits/splits_400p/val.json", "r") as f:
         data = json.load(f)
     input_csv_list = [data[sub]["ses-3T"] for sub in data]
-    # input_csv_list = [
-    #     Path(data[sub]["ses-3T"]["file_path"].replace("data_100p", "data_like-npi"))
-    #     for sub in data
-    # ]
     for inp in tqdm(input_csv_list):
         subject = Path(inp["file_path"])
         tr = inp["tr"]
@@ -213,35 +176,6 @@ def main(cfg):
             subject.with_name(subject.name.replace("cleaned-timeseries", "connectome")),
             index_col=0,
         ).to_numpy()
-        # for predicting fourier
-        # train_dataset = SingleSubjectFFTFuncDataset(
-        #     train_data,
-        #     cfg.data.train.step,
-        #     noise_strength=cfg.data.noise_strength,
-        #     pred_len=cfg.data.pred_len,
-        #     target_tr=cfg.data.target_tr,
-        #     tr=tr,
-        # )
-        # train_loader = TorchDataLoader(
-        #     train_dataset,
-        #     batch_size=cfg.batch_size,
-        #     shuffle=True,
-        # )
-        # test_dataset = SingleSubjectFFTFuncDataset(
-        #     test_data,
-        #     cfg.data.test.step,
-        #     pred_len=cfg.data.pred_len,
-        #     target_tr=cfg.data.target_tr,
-        #     tr=tr,
-        #     noise_strength=0.0,
-        #     mean=train_loader.dataset.mean,
-        #     std=train_loader.dataset.std,
-        # )
-        # test_loader = TorchDataLoader(
-        #     test_dataset,
-        #     batch_size=cfg.batch_size,
-        #     shuffle=False,
-        # )
 
         # single subject brain func
         train_dataset = SingleSubjectBrainFuncRecursiveDataset(
@@ -269,61 +203,16 @@ def main(cfg):
             shuffle=False,
         )
 
-        ## single subject stcgn
-        # train_loader = TorchDataLoader(
-        #     SingleSubjectBrainFuncSTGCNDataset(
-        #         train_data,
-        #         fc,
-        #         cfg.data.train.threshold,
-        #         cfg.data.train.step,
-        #     ),
-        #     batch_size=cfg.batch_size,
-        #     shuffle=True
-        # )
-        # test_loader = TorchDataLoader(
-        #     SingleSubjectBrainFuncSTGCNDataset(
-        #         test_data,
-        #         fc,
-        #         cfg.data.train.threshold,
-        #         cfg.data.test.step,
-        #     ),
-        #     batch_size=cfg.batch_size,
-        #     shuffle=False
-        # )
-
-        # single subject gcn
-        # train_loader = PyGDataLoader(
-        #     SingleSubjectBrainFuncGCNDataset(
-        #         train_data,
-        #         fc,
-        #         cfg.data.train.threshold,
-        #         cfg.data.train.step,
-        #     ),
-        #     batch_size=cfg.batch_size,
-        #     shuffle=True
-        # )
-
-        # test_loader = PyGDataLoader(
-        #     SingleSubjectBrainFuncGCNDataset(
-        #         test_data,
-        #         fc,
-        #         cfg.data.train.threshold,
-        #         cfg.data.test.step,
-        #     ),
-        #     batch_size=cfg.batch_size,
-        #     shuffle=False
-        # )
-
         trainer(train_loader=train_loader, val_loader=test_loader)
         torch.cuda.empty_cache()
         with torch.no_grad():
             evaluate_on_train_end(
                 cfg,
                 # train_dataset.scaler.transform(test_data), # type: ignore
-                train_dataset.data,
+                test_dataset.data,
                 fc,
                 trainer.model,
-                label_file="1000p_labels.txt",
+                label_file="data/utils/400p_labels.txt",
                 # mean=train_dataset.mean,
                 # std=train_dataset.std,
                 mean=torch.tensor(0),

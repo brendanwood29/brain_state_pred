@@ -6,11 +6,11 @@ import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
-from tqdm import tqdm
+from torch.utils.data import DataLoader
 
 from models import npi_model_getter
 from pytorch_trainer import Trainer
-from utils import get_loader
+from utils import BrainFuncRecursiveDataset
 
 
 def fix_seeds(seed=42):
@@ -36,21 +36,124 @@ def get_config() -> ListConfig | DictConfig:
     return cfg
 
 
+def delay_signal(x, prev_x, num_steps, num_steps_back):
+    comb = torch.cat([prev_x, x], dim=1)
+    # delayed_signals = [
+    #     comb[:, -num_steps - step : -step, :] for step in range(1, num_steps_back + 1)
+    # ]
+    delayed_signals = comb[
+        :, -num_steps - num_steps_back : -num_steps_back, :
+    ]  # Just get the most in the past signal
+    # delayed_signals = list(
+    #     reversed(delayed_signals)
+    # )  # Reverse so list is oldest to newest
+    return delayed_signals
+
+
 class BrainStateTrainer(Trainer):
     def __init__(self, cfg, model_getter):
         super().__init__(cfg, model_getter)
         self.num_steps = cfg.model.kwargs.steps
 
+    # def model_forward(self, batch):
+    #     """Model forward for the transformer based architecture"""
+    #     batch = [x.to(self.cfg.device) for x in batch]
+    #     x, y = batch
+    #     B, N = x.shape
+    #     x = x.reshape(B, self.num_steps, int(N / self.num_steps))
+    #     y = y.reshape(B, self.num_steps, int(N / self.num_steps))
+    #     y_hat = self.model(x)
+    #     loss = self.loss_fn(y_hat, y)
+    #     return loss, x.shape[0]
+
     def model_forward(self, batch):
-        """Model forward for the transformer based architecture"""
+        """Mamba Model Forward"""
         batch = [x.to(self.cfg.device) for x in batch]
-        x, y = batch
+        x, y, prev = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
-        y = y.reshape(B, self.num_steps, int(N / self.num_steps))
+        prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
+        y = y.reshape(B, -1, self.cfg.data.num_regions)
+        # self.model.eval()
+        # x = self.schedule_recursion(x, prev)
+        # self.model.train()
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
-        return loss, x.shape[0]
+        return loss, B
+
+    @torch.no_grad()
+    def schedule_recursion(self, x, prev):
+        k_include = 50
+        k_num = 50
+        prob_include = 1 - (
+            k_include / (k_include + torch.e ** (self.step / k_include))
+        )
+        prob_num = 1 - (k_num / (k_num + torch.e ** (self.step / k_num)))
+
+        if self.current_mode == "Train":
+            if torch.rand(1).item() < prob_include:
+                if prob_num < 0.3:
+                    num_steps_back = 1
+                elif 0.3 <= prob_num < 0.4:
+                    num_steps_back = 2
+                elif 0.4 <= prob_num < 0.5:
+                    num_steps_back = 3
+                elif 0.5 <= prob_num < 0.6:
+                    num_steps_back = 4
+                elif 0.6 <= prob_num < 0.7:
+                    num_steps_back = 5
+                elif 0.7 <= prob_num < 0.8:
+                    num_steps_back = 6
+                elif 0.8 <= prob_num < 0.9:
+                    num_steps_back = 7
+                elif 0.9 <= prob_num:
+                    num_steps_back = 8
+                else:
+                    return x
+                b, t, r = x.shape
+                # delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
+                # delayed_signals = torch.stack(delayed_signals, dim=0).reshape(-1, t, r)
+                # prior_outs = [self.model(delayed_signals)]
+                prior_outs = [self.model(prev)]
+                for i in range(1, num_steps_back):
+                    prior_outs.append(
+                        self.model(
+                            torch.cat(
+                                tensors=[
+                                    prev[:, i:, :],
+                                    torch.cat(prior_outs[:i], dim=1),
+                                ],
+                                dim=1,
+                            )
+                        )
+                    )
+                prev_outs = torch.cat(prior_outs, dim=1)
+                x[:, -num_steps_back:, :] = prev_outs
+                return x
+
+            else:
+                return x
+        else:
+            b, t, r = x.shape
+            # delayed_signals = delay_signal(x, prev, self.num_steps, self.num_steps)
+            # prev_outs = torch.cat([self.model(inp) for inp in delayed_signals], dim=1)
+            # prior_outs = [self.model(delayed_signals)]
+            prior_outs = [self.model(prev)]
+            for i in range(1, self.num_steps):
+                prior_outs.append(
+                    self.model(
+                        torch.cat(
+                            tensors=[
+                                prev[:, i:, :],
+                                torch.cat(prior_outs[:i], dim=1),
+                            ],
+                            dim=1,
+                        )
+                    )
+                )
+            prev_outs = torch.cat(prior_outs, dim=1)
+            x[:, -self.num_steps :, :] = prev_outs
+            return x
 
 
 # class BrainStateTrainer(Trainer):
@@ -73,34 +176,29 @@ def main(cfg: ListConfig | DictConfig):
 
     trainer = BrainStateTrainer(cfg, model_getter=npi_model_getter)
 
-    train_loader = get_loader(
-        data_path=cfg.data.train.data_path,
+    train_dataset = BrainFuncRecursiveDataset(
+        split_path=cfg.data.train.data_path,
         step=cfg.data.train.step,
-        strength=cfg.data.strength,
+        noise_strength=cfg.data.noise_strength,
+        target_tr=cfg.data.target_tr,
+    )
+    val_dataset = BrainFuncRecursiveDataset(
+        split_path=cfg.data.val.data_path,
+        step=cfg.data.val.step,
+        noise_strength=0,
+        target_tr=cfg.data.target_tr,
+    )
+
+    train_loader = DataLoader(
+        dataset=train_dataset,
         batch_size=cfg.batch_size,
         shuffle=cfg.data.train.shuffle,
     )
-    val_loader = get_loader(
-        data_path=cfg.data.val.data_path,
-        step=cfg.data.val.step,
-        strength=0.0,
+    val_loader = DataLoader(
+        dataset=val_dataset,
         batch_size=cfg.batch_size,
-        shuffle=cfg.data.val.shuffle,
+        shuffle=cfg.data.train.shuffle,
     )
-
-    # Uncomment below to allow for graph based training
-    # train_loader = get_pyg_loader(
-    #     data_path=cfg.data.train.data_path,
-    #     threshold=cfg.data.train.threshold,
-    #     step=cfg.data.train.step,
-    # )
-
-    # val_loader = get_pyg_loader(
-    #     data_path=cfg.data.val.data_path,
-    #     threshold=cfg.data.val.threshold,
-    #     step=cfg.data.val.step,
-    #     shuffle=cfg.data.val.shuffle,
-    # )
 
     trainer(train_loader, val_loader)
 
