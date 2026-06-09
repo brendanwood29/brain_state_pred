@@ -1,20 +1,20 @@
-num_epochs: 300 
-batch_size: 82
-device: cuda:0
+num_epochs: 100
+batch_size: 50
+device: cuda:1
 run_name: run_1
-work_dir: results/diff_test/test_1
+work_dir: results/baseline_new_set
 seed: 42
 # batch_pbar: true
 optim:
-  name: adamw
-  lr: 5e-4
+  name: adam
+  lr: 1e-3
   kwargs:
-    weight_decay: 5e-4
+    weight_decay: 5e-5
 loss:
   name: mse_loss
   # name: mse_fourier_loss
   # kwargs:
-  #   recon_weight: 0.1  
+  #   recon_weight: 0.1
   #   fourier_weight: 1.0
   #   freq_weights: [0.1, 1, 1, 1, 1]
   # name: mse_fc_loss
@@ -24,22 +24,22 @@ loss:
   # name: mse_first_loss
   # kwargs:
   #   recon_weight: 0.25
-  #   first_weight: 0.75  
-grad_clip:
-  max_norm: 1.0
-# scheduler: null
-scheduler:
-  name: onecycle
-  kwargs:
-    max_lr: ${optim.lr}
-    # total_steps: 2000
-    pct_start: 0.2
-    epochs: ${num_epochs}
-    steps_per_epoch: 4
-    div_factor: 250.0
-    final_div_factor: 100000.0
-model: 
-  name: transformer
+  #   first_weight: 0.75
+# grad_clip:
+#   max_norm: 1.0
+scheduler: null
+# scheduler:
+#   name: onecycle
+#   kwargs:
+#     max_lr: ${optim.lr}
+#     # total_steps: 2000
+#     pct_start: 0.0
+#     epochs: ${num_epochs}
+#     steps_per_epoch: 4
+#     div_factor: 250.0
+#     final_div_factor: 100000.0
+model:
+  name: npi_mlp
   print_summary: true
   num_models_to_save: 5
   save_last: true
@@ -48,58 +48,67 @@ model:
   # unfreeze_modules:
   #   - lora
   #   - norm
-  init: null
-    # weights: results/final_results/transformer_all/run_2/models/final_model.pt
-    # weights_only: true
-    # strict: false
-########## Transformer with lora
+  # init: null
+  # weights: results/final_results/transformer_all/run_2/models/final_model.pt
+  # weights_only: true
+  # strict: false
+  ########## Mamba Model
+  # kwargs:
+  #   num_blocks: 2
+  #   d_model: ${data.num_regions}
+  #   d_state: 256
+  #   d_conv: 8
+  #   expand: 4
+  #   dropout: 0.30
+  #   steps: 8
+  ########## Transformer with lora
+  # kwargs:
+  #   in_features: ${data.num_regions}
+  #   num_heads: 2
+  #   steps: 8
+  #   num_blocks: 1
+  #   # masked_attn: true
+  #   attn_drop_prob: 0.25
+  #   final_drop_prob: 0.25
+  #   ffn_dropout: 0.25
+  # pred_len: ${data.pred_len}
+  # use_lora: true
+  # alpha: 64
+  # r: 64
+  ######### NPI MLP
   kwargs:
-    in_features: 1000
-    num_heads: 2
-    steps: 8
-    num_blocks: 1
-    # masked_attn: true
-    attn_drop_prob: 0.25
-    final_drop_prob: 0.25
-    ffn_dropout: 0.25
-    pred_len: ${data.pred_len}
-    # use_lora: true
-    # alpha: 64
-    # r: 64
-######### NPI MLP
-  # kwargs:
-  #   input_dim: 3000
-  #   hidden_dim: 2000
-  #   latent_dim: 800
-  #   output_dim: 1000
-  #   steps: 3
+    input_dim: 1200
+    hidden_dim: 2400
+    latent_dim: 320
+    output_dim: 400
+    steps: 3
 ########## GCN
-  # kwargs: 
-  #   num_features: 20
-  #   hidden_dim: 128
+# kwargs:
+#   num_features: 20
+#   hidden_dim: 128
 ######### GCTN
-  # kwargs:
-  #   in_channels: 20
-  #   out_channels: 1
-  #   heads: 12
-  #   dropout: 0.0
+# kwargs:
+#   in_channels: 20
+#   out_channels: 1
+#   heads: 12
+#   dropout: 0.0
 ########## STGCN
-  # kwargs:
-  #   num_nodes: 360
-  #   in_features: 1
-  #   hidden_dim: 10
-  #   out_features: 1
+# kwargs:
+#   num_nodes: 360
+#   in_features: 1
+#   hidden_dim: 10
+#   out_features: 1
 callbacks:
   use_early_stopping: false
   patience: 5
   threshold: 0.0001
 data:
   train_proportion: 0.8
-  noise_strength: 1.0
-  pred_len: 8
+  noise_strength: 0.0
+  # pred_len: 8
   target_tr: 2
   num_regions: 1000
-  train: 
+  train:
     step: ${model.kwargs.steps}
     # threshold: 0.8
   test:
