@@ -17,5 +17,6 @@ For any issues please contact [Brendan Wood](mailto:bwt.wood@mail.utoronto.ca)
 See [this](https://github.com/state-spaces/mamba/issues/842) post about installing Mamba
 easiest way right now is to run (after the environment has been created)
 ```bash
-    uv run pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu11torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir
+    uv run pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu11torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir --no-deps
 ```
+Then install the extra dependencies independently (should be `einops`, `huggingface_hub`, and `transformers`)
