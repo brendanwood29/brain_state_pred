@@ -68,7 +68,6 @@ class BrainStateTrainer(Trainer):
 
     def model_forward(self, batch):
         """Mamba Model Forward"""
-        batch = [x.to(self.cfg.device) for x in batch]
         x, y, prev = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
@@ -79,6 +78,7 @@ class BrainStateTrainer(Trainer):
         # self.model.train()
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
+        torch.cuda.empty_cache()
         return loss, B
 
     @torch.no_grad()
@@ -189,18 +189,7 @@ def main(cfg: ListConfig | DictConfig):
         target_tr=cfg.data.target_tr,
     )
 
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        batch_size=cfg.batch_size,
-        shuffle=cfg.data.train.shuffle,
-    )
-    val_loader = DataLoader(
-        dataset=val_dataset,
-        batch_size=cfg.batch_size,
-        shuffle=cfg.data.train.shuffle,
-    )
-
-    trainer(train_loader, val_loader)
+    trainer(train_dataset, val_dataset)
 
 
 if __name__ == "__main__":
