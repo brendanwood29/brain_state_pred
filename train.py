@@ -6,7 +6,6 @@ import torch
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
-from torch.utils.data import DataLoader
 
 from models import npi_model_getter
 from pytorch_trainer import Trainer
