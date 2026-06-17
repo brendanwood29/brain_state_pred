@@ -25,8 +25,8 @@ def get_config() -> ListConfig | DictConfig:
 if __name__ == "__main__":
     # All subjects
     params_to_check = {
-        "k": [112, 117],
-        "lr": [1e-3, 5e-4],
+        "k": [],
+        "lr": [5e-4],
         "dropout": [0.30],
     }
     print(len(ParameterGrid(params_to_check)))
