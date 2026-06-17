@@ -46,3 +46,6 @@ indent-style = "space"
 docstring-code-format = true  # formats code blocks inside docstrings
 [tool.ruff.lint]
 select = ["E", "F", "I"]  # E=pycodestyle, F=pyflakes, I=isort
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
