@@ -1,8 +1,8 @@
-num_epochs: 200
-batch_size: 2048
-device: cuda:1
+num_epochs: 100
+batch_size: 1600
+device: all
 run_name: run_1
-work_dir: results/mamba_pretrained
+work_dir: results/ddp_test
 seed: 42
 batch_pbar: true
 optim:
@@ -24,7 +24,7 @@ scheduler:
   kwargs:
     max_lr: ${optim.lr}
     # total_steps: 1000
-    steps_per_epoch: 119
+    steps_per_epoch: 153
     epochs: ${num_epochs}
     pct_start: 0.0
 model:

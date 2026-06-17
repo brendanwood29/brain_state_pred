@@ -1,13 +1,14 @@
-num_epochs: 100
-batch_size: 50
-device: cuda:1
+num_epochs: 200
+batch_size: 82
+device: all
 run_name: run_1
-work_dir: results/baseline_new_set
+work_dir: results/mamba_val_no_recuse
 seed: 42
+k: 56
 # batch_pbar: true
 optim:
-  name: adam
-  lr: 1e-3
+  name: adamw
+  lr: 5e-4
   kwargs:
     weight_decay: 5e-5
 loss:
@@ -26,40 +27,41 @@ loss:
   #   first_weight: 0.75
 # grad_clip:
 #   max_norm: 1.0
-scheduler: null
-# scheduler:
-#   name: onecycle
-#   kwargs:
-#     max_lr: ${optim.lr}
-#     # total_steps: 2000
-#     pct_start: 0.0
-#     epochs: ${num_epochs}
-#     steps_per_epoch: 4
-#     div_factor: 250.0
-#     final_div_factor: 100000.0
+# scheduler: null
+scheduler:
+  name: onecycle
+  kwargs:
+    max_lr: ${optim.lr}
+    # total_steps: 2000
+    pct_start: 0.0
+    epochs: ${num_epochs}
+    steps_per_epoch: 4
+    div_factor: 250.0
+    final_div_factor: 100000.0
 model:
-  name: npi_mlp
+  name: mamba
   print_summary: true
   num_models_to_save: 2
   save_last: true
   # freeze_modules:
-  #   - model
+  #   - blocks
   # unfreeze_modules:
   #   - lora
   #   - norm
-  # init: null
-  # weights: results/final_results/transformer_all/run_2/models/final_model.pt
-  # weights_only: true
-  # strict: false
+  init: null 
+  # init: 
+  #   weights: results/ddp_test/run_1/models/final_model.pt
+  #   weights_only: true
+  #   strict: false
   ########## Mamba Model
-  # kwargs:
-  #   num_blocks: 2
-  #   d_model: ${data.num_regions}
-  #   d_state: 256
-  #   d_conv: 8
-  #   expand: 4
-  #   dropout: 0.30
-  #   steps: 8
+  kwargs:
+    num_blocks: 2
+    d_model: ${data.num_regions}
+    d_state: 256
+    d_conv: 8
+    expand: 4
+    dropout: 0.3
+    steps: 8
   ########## Transformer with lora
   # kwargs:
   #   in_features: ${data.num_regions}
@@ -75,12 +77,12 @@ model:
   # alpha: 64
   # r: 64
   ######### NPI MLP
-  kwargs:
-    input_dim: 1200
-    hidden_dim: 2400
-    latent_dim: 320
-    output_dim: 400
-    steps: 3
+  # kwargs:
+  #   input_dim: 1200
+  #   hidden_dim: 800
+  #   latent_dim: 320
+  #   output_dim: 400
+  #   steps: 3
 ########## GCN
 # kwargs:
 #   num_features: 20
@@ -116,14 +118,15 @@ callbacks:
   threshold: 0.0001
 data:
   train_proportion: 0.8
-  noise_strength: 0.0
+  noise_strength: 1.0
   # pred_len: 8
   target_tr: 2
-  num_regions: 1000
+  num_regions: 400
   train:
     step: ${model.kwargs.steps}
+    shuffle: true
     # threshold: 0.8
-  test:
+  val:
     step: ${data.train.step}
     shuffle: false
     # threshold: 0.8
