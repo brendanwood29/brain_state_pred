@@ -6,10 +6,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import torch.distributed as dist
 from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
-from torch.utils.data import DataLoader as TorchDataLoader
 from tqdm import tqdm
 
 from models import npi_model_getter
@@ -66,7 +66,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
 
     def model_forward(self, batch):
         """Mamba/transformer/mlp Model Forward"""
-        batch = [x.to(self.cfg.device) for x in batch]
+        # batch = [x.to(self.cfg.device) for x in batch]
         x, y, prev = batch
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
@@ -185,39 +185,34 @@ def main(cfg):
             target_tr=cfg.data.target_tr,
             tr=tr,
         )
-        train_loader = TorchDataLoader(
-            train_dataset,
-            batch_size=cfg.batch_size,
-            shuffle=True,
-        )
         test_dataset = SingleSubjectBrainFuncRecursiveDataset(
             test_data,
-            cfg.data.test.step,
+            cfg.data.val.step,
             target_tr=cfg.data.target_tr,
             tr=tr,
             noise_strength=0.0,
         )
-        test_loader = TorchDataLoader(
-            test_dataset,
-            batch_size=cfg.batch_size,
-            shuffle=False,
-        )
 
-        trainer(train_loader=train_loader, val_loader=test_loader)
+        if dist.is_initialized():
+            dist.barrier()
+        trainer(train_dataset=train_dataset, val_dataset=test_dataset)
         torch.cuda.empty_cache()
-        with torch.no_grad():
-            evaluate_on_train_end(
-                cfg,
-                # train_dataset.scaler.transform(test_data), # type: ignore
-                test_dataset.data,
-                fc,
-                trainer.model,
-                label_file="data/utils/400p_labels.txt",
-                # mean=train_dataset.mean,
-                # std=train_dataset.std,
-                mean=torch.tensor(0),
-                std=torch.tensor(1),
-            )
+        if trainer.trainer_rank == 0:
+            with torch.no_grad():
+                evaluate_on_train_end(
+                    cfg,
+                    # train_dataset.scaler.transform(test_data), # type: ignore
+                    test_dataset.data,
+                    fc,
+                    trainer.model,
+                    label_file="data/utils/400p_labels.txt",
+                    # mean=train_dataset.mean,
+                    # std=train_dataset.std,
+                    mean=torch.tensor(0),
+                    std=torch.tensor(1),
+                    device=trainer.trainer_device,
+                )
+        dist.barrier()
 
 
 if __name__ == "__main__":
