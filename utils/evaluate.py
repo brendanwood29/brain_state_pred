@@ -214,7 +214,14 @@ def parallel_plotting(recon, test_data, run, fname, input_len=None):
 
 
 def evaluate_on_train_end(
-    cfg: DictConfig | ListConfig, test_data, real_fc, model, label_file, mean, std
+    cfg: DictConfig | ListConfig,
+    test_data,
+    real_fc,
+    model,
+    label_file,
+    mean,
+    std,
+    device,
 ):
 
     warnings.simplefilter("ignore", FutureWarning)
@@ -234,14 +241,14 @@ def evaluate_on_train_end(
         return
 
     model.eval()
-    model.to(cfg.device)
+    model.to(device)
     model_fc = get_model_fc(
-        model, cfg.data.train.step, 1200, len(labels), cfg.device, mean, std
+        model, cfg.data.train.step, 1200, len(labels), device, mean, std
     )
     torch.cuda.empty_cache()
 
     recon, recon_err = get_recon(
-        model, test_data, cfg.data.train.step, cfg.device, mean, std
+        model, test_data, cfg.data.train.step, device, mean, std
     )
     torch.cuda.empty_cache()
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
