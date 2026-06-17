@@ -1225,6 +1225,11 @@ cuda = [
     { name = "torch" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytorch-trainer" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "matplotlib", specifier = ">=3.10.8" },
@@ -1235,6 +1240,9 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.67.3" },
 ]
 provides-extras = ["cpu", "cuda"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytorch-trainer", editable = "pytorch_trainer" }]
 
 [[package]]
 name = "pyyaml"
