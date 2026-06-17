@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from mamba_ssm import Mamba
 
+from .transformer_based import LoRA
+
 
 class TrainableRegionEmbedding(nn.Module):
     def __init__(self, in_features: int, steps: int):
@@ -36,7 +38,13 @@ class MambaModel(nn.Module):
         # self.layer_norm_in = nn.LayerNorm([steps, d_model])
         # self.region_embed = TrainableRegionEmbedding(d_model, steps)
         self.blocks = nn.ModuleList(
-            [Mamba(d_model, d_state, d_conv, expand) for _ in range(num_blocks)]
+            [
+                nn.Sequential(
+                    Mamba(d_model, d_state, d_conv, expand),
+                    # LoRA(d_model, 64, d_model, 64, False, nn.SiLU),
+                )
+                for _ in range(num_blocks)
+            ]
         )
         self.norms = nn.ModuleList(
             [nn.LayerNorm([steps, d_model]) for _ in range(num_blocks)]
