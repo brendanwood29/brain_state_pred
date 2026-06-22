@@ -10,6 +10,7 @@ import seaborn as sns
 import svgutils.transform as sg
 import torch
 from nilearn.connectome import ConnectivityMeasure
+from scipy.signal import welch
 from scipy.stats import pearsonr
 
 matplotlib.use("Agg")
@@ -18,6 +19,13 @@ from joblib import Parallel, delayed
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from torch_geometric.data import Data
+
+
+def get_pearson_avg(arr, axis=None):
+
+    fish = np.tanh(np.clip(arr, a_min=-0.999999, a_max=0.999999))
+    mean_fish = np.mean(fish, axis=axis)
+    return np.arctanh(mean_fish)
 
 
 def remove_diag(arr):
@@ -160,6 +168,22 @@ def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, 
     return connectome[0]
 
 
+def get_signal_r(real_data, recon):
+    r, p = pearsonr(real_data, recon, axis=0)
+    return r
+
+
+def get_psd_r(real_data, recon, tr):
+    real_psd = welch(
+        real_data, fs=1 / tr, nperseg=real_data.shape[0], axis=0, return_onesided=True
+    )
+    recon_psd = welch(
+        recon, fs=1 / tr, nperseg=recon.shape[0], axis=0, return_onesided=True
+    )
+    r, p = pearsonr(real_psd[1], recon_psd[1], axis=0)
+    return r
+
+
 def plot_traces(i, test_data, recon, save_path, input_len=None):
     fig, ax = plt.subplots(figsize=(6, 2))
     ax.plot(
@@ -254,7 +278,12 @@ def evaluate_on_train_end(
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
     pd.DataFrame(recon).to_csv(run.joinpath("recon_signal", "signal.csv"))
     df.at[run.name, "recon_err"] = recon_err
-
+    df.at[run.name, "recon_r"] = get_pearson_avg(
+        get_signal_r(np.array(test_data), recon)
+    )
+    df.at[run.name, "psd_r"] = get_pearson_avg(
+        get_psd_r(np.array(test_data), recon, tr=cfg.data.target_tr)
+    )
     parallel_plotting(
         recon, test_data, run, "all_traces", input_len=cfg.data.train.step
     )
@@ -321,5 +350,10 @@ def evaluate_on_train_end(
     df.index.name = "Scan"
     df = df.sort_index()
     df.to_csv(f"{work_dir.joinpath(work_dir.name)}.csv")
-    print(df["r"].mean(), df["r"].median(), df["r"].std())
+    mean_r = get_pearson_avg(df["r"])
+    print(
+        mean_r,
+        df["r"].median(),
+        df["r"].apply(lambda x: (x - mean_r) ** 2).sum() / (df.shape[0] - 1),
+    )
     print(df["recon_err"].mean(), df["recon_err"].median(), df["recon_err"].std())
