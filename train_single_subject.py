@@ -72,9 +72,9 @@ class SingleSubjectBrainStateTrainer(Trainer):
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
         y = y.reshape(B, -1, self.cfg.data.num_regions)
-        # self.model.eval()
-        # x = self.schedule_recursion(x, prev)
-        # self.model.train()
+        self.model.eval()
+        x = self.schedule_recursion(x, prev)
+        self.model.train()
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
@@ -158,6 +158,7 @@ def main(cfg):
         fix_seeds(42)
 
     # Uncomment below to allow for fine tuning on only testing subjects
+    # with open("splits/splits_400p_aabc/val.json", "r") as f:
     with open("splits/splits_400p/val.json", "r") as f:
         data = json.load(f)
     input_csv_list = [data[sub]["ses-3T"] for sub in data]
@@ -212,7 +213,11 @@ def main(cfg):
                     std=torch.tensor(1),
                     device=trainer.trainer_device,
                 )
-        dist.barrier()
+        if dist.is_initialized():
+            dist.barrier()
+
+    if dist.is_initialized():
+        dist.destroy_process_group()
 
 
 if __name__ == "__main__":
