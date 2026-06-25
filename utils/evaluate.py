@@ -1,3 +1,4 @@
+import copy
 import shutil
 import warnings
 from pathlib import Path
@@ -89,6 +90,73 @@ def get_recon(model, real_data, steps, device, mean, std):
     return outputs, np.mean(
         (real_data[steps : outputs.shape[0]] - outputs[steps : real_data.shape[0]]) ** 2
     )
+
+
+def perturb_signal(inp, regions, length, strength, how="impulse"):
+    if length > 1:
+        inp = torch.stack(inp[-length:], dim=1)
+    else:
+        inp = inp[-1].unsqueeze(1)
+    if how == "impulse":
+        inp[:, :, regions] = inp[:, :, regions] + strength * torch.ones(
+            (inp.shape[0], length, len(regions)), device=inp.device, dtype=inp.dtype
+        )  # adding purturbation to signal
+
+    elif how == "hrf":
+        hrf = (
+            torch.tensor(
+                [-0.5, 0, 0.25, 1, 2, 1, 0.25], device=inp.device, dtype=inp.dtype
+            )
+            .unsqueeze(0)
+            .unsqueeze(-1)
+        )
+        inp[:, :, regions] = inp[:, :, regions] + hrf * torch.ones(
+            (inp.shape[0], length, len(regions)), device=inp.device, dtype=inp.dtype
+        )  # adding purturbation to signal
+
+    return [inp[:, x, :] for x in range(inp.shape[1])]
+
+
+def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
+
+    real_inputs = [
+        torch.tensor(real_data[x : x + steps], dtype=torch.float)
+        for x in range(real_data.shape[0] - steps - pred_len)
+    ]  # Create starting points at all possible starting points
+    stacked_inputs = torch.stack(real_inputs, dim=0)
+    stacked_list = [stacked_inputs[:, x, :] for x in range(stacked_inputs.shape[1])]
+    real_inputs = copy.deepcopy(stacked_list)
+    for _ in range(pred_len):
+        inter_input_real = torch.stack(real_inputs[-steps:], dim=1).to(device)
+        real_inputs.append(model(inter_input_real).squeeze(1).to("cpu"))
+    real = torch.stack(real_inputs[steps:], dim=1)
+    real_path = run.joinpath("ec", "signals", "real")
+    real_path.mkdir(parents=True, exist_ok=True)
+    to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
+    for i in range(to_save.shape[0]):
+        pd.DataFrame(to_save[i]).to_csv(real_path.joinpath(f"start-pt_{i}.csv"))
+
+    pred_path = run.joinpath("ec", "signals", "pred")
+    pred_path.mkdir(parents=True, exist_ok=True)
+    ecs = []
+    for i, region in enumerate(regions):
+        pert_inputs = copy.deepcopy(stacked_list)
+        pert_inputs[-pert_len:] = perturb_signal(
+            pert_inputs, region, pert_len, strength=5, how="impulse"
+        )  # Replace the real signal with perturbed signal
+        for _ in range(pred_len):
+            inter_input_pert = torch.stack(pert_inputs[-steps:], dim=1).to(device)
+            pert_inputs.append(model(inter_input_pert).squeeze(1).to("cpu"))
+        pred_path.joinpath(f"pert_{i}").mkdir(parents=True, exist_ok=True)
+        pert = torch.stack(pert_inputs[steps:], dim=1).cpu()
+        to_save = torch.stack(pert_inputs, dim=1).cpu().numpy()
+        for j in range(to_save.shape[0]):
+            pd.DataFrame(to_save[j]).to_csv(
+                pred_path.joinpath(f"pert_{i}", f"start-pt_{j}.csv")
+            )
+        ecs.append((real - pert).numpy())
+
+    return np.array(ecs)
 
 
 def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
@@ -269,13 +337,29 @@ def evaluate_on_train_end(
     model_fc = get_model_fc(
         model, cfg.data.train.step, 1200, len(labels), device, mean, std
     )
-    torch.cuda.empty_cache()
-
     recon, recon_err = get_recon(
         model, test_data, cfg.data.train.step, device, mean, std
     )
-    torch.cuda.empty_cache()
+    ecs = get_ec(
+        model=model,
+        real_data=test_data,
+        steps=cfg.data.train.step,
+        pred_len=10,
+        regions=[[i] for i in range(len(labels))],
+        pert_len=7,
+        run=run,
+        device=device,
+    )
+
+    run.joinpath("ecs").mkdir(parents=True, exist_ok=True)
+    ecs = np.permute_dims(ecs, (1, 2, 0, 3))
+    ecs = ecs.mean(axis=1)
+    for i in range(ecs.shape[0]):
+        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
+            run.joinpath("ecs", f"ec_{i}.csv")
+        )
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
+    # pd.DataFrame(ecs, index=labels, columns=labels).to_csv(run.joinpath("ec.csv"))
     pd.DataFrame(recon).to_csv(run.joinpath("recon_signal", "signal.csv"))
     df.at[run.name, "recon_err"] = recon_err
     df.at[run.name, "recon_r"] = get_pearson_avg(
@@ -350,7 +434,7 @@ def evaluate_on_train_end(
     df.index.name = "Scan"
     df = df.sort_index()
     df.to_csv(f"{work_dir.joinpath(work_dir.name)}.csv")
-    mean_r = get_pearson_avg(df["r"])
+    mean_r = get_pearson_avg(df["r"].to_numpy(dtype=np.float64))
     print(
         mean_r,
         df["r"].median(),
