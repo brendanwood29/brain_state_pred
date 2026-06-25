@@ -23,3 +23,10 @@ easiest way right now is to run (after the environment has been created)
     uv pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu11torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir --no-deps
 ```
 Then install the extra dependencies independently (should be `einops`, `huggingface_hub`, and `transformers`)
+# To Run the Container
+
+```bash
+
+docker run -d --gpus=all --memory=256g --memory-swap=256 --shm-size=256g --hostname brain_state_pred --name brain_state_pred -v "$(pwd)":/projects/bwood/classes/brain_state_pred -w /projects/bwood/classes/brain_state_pred brain_state_pred sleep infinity
+
+```
