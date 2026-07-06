@@ -63,8 +63,7 @@ def get_recon(model, real_data, steps, device, mean, std):
     model.eval()
     mean = mean.to(device)
     std = std.to(device)
-    outputs = [torch.tensor(real_data[x]) for x in range(steps)]
-    real_data = torch.tensor(real_data)
+    outputs = [real_data[x] for x in range(steps)]
     # for i in range(0, real_data.shape[0] - steps, 1):
     while len(outputs) < real_data.shape[0]:
         sim_input = torch.vstack([x.to(device) for x in outputs[-steps:]]).to(
@@ -87,8 +86,13 @@ def get_recon(model, real_data, steps, device, mean, std):
     outputs = torch.vstack(outputs).detach().cpu().numpy()
     # outputs = bandpass(outputs, 0.01, 0.1, 0.5)
     real_data = real_data.cpu().numpy()
-    return outputs, np.mean(
-        (real_data[steps : outputs.shape[0]] - outputs[steps : real_data.shape[0]]) ** 2
+    return (
+        outputs,
+        real_data,
+        np.mean(
+            (real_data[steps : outputs.shape[0]] - outputs[steps : real_data.shape[0]])
+            ** 2
+        ),
     )
 
 
@@ -120,8 +124,7 @@ def perturb_signal(inp, regions, length, strength, how="impulse"):
 def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
 
     real_inputs = [
-        torch.tensor(real_data[x : x + steps], dtype=torch.float)
-        for x in range(real_data.shape[0] - steps - pred_len)
+        real_data[x : x + steps] for x in range(real_data.shape[0] - steps - pred_len)
     ]  # Create starting points at all possible starting points
     stacked_inputs = torch.stack(real_inputs, dim=0)
     stacked_list = [stacked_inputs[:, x, :] for x in range(stacked_inputs.shape[1])]
@@ -130,13 +133,13 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
         inter_input_real = torch.stack(real_inputs[-steps:], dim=1).to(device)
         real_inputs.append(model(inter_input_real).squeeze(1).to("cpu"))
     real = torch.stack(real_inputs[steps:], dim=1)
-    real_path = run.joinpath("ec", "signals", "real")
+    real_path = run.joinpath("ecs", "signals", "real")
     real_path.mkdir(parents=True, exist_ok=True)
     to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
     for i in range(to_save.shape[0]):
         pd.DataFrame(to_save[i]).to_csv(real_path.joinpath(f"start-pt_{i}.csv"))
 
-    pred_path = run.joinpath("ec", "signals", "pred")
+    pred_path = run.joinpath("ecs", "signals", "pred")
     pred_path.mkdir(parents=True, exist_ok=True)
     ecs = []
     for i, region in enumerate(regions):
@@ -154,9 +157,9 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
             pd.DataFrame(to_save[j]).to_csv(
                 pred_path.joinpath(f"pert_{i}", f"start-pt_{j}.csv")
             )
-        ecs.append((real - pert).numpy())
+        ecs.append((pert - real).numpy())
 
-    return np.array(ecs)
+    return np.array(ecs)  # perturbed region, pred_len, starting_point, output_regions
 
 
 def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
@@ -273,6 +276,37 @@ def plot_traces(i, test_data, recon, save_path, input_len=None):
     plt.close(fig)
 
 
+def plot_trace_imgs(real, recon, save_path, name):
+    real = real.T
+    recon = recon.T
+    panels = [
+        ("real signal", real, "viridis"),
+        ("recon signal", recon, "viridis"),
+        ("difference (real - recon)", real - recon, "coolwarm"),
+    ]
+
+    # Match every panel's colorbar range to the real signal's min/max.
+    vmin, vmax = real.min(), real.max()
+
+    fig, axes = plt.subplots(1, 3, figsize=(28, 8), constrained_layout=True)
+    for ax, (title, data, cmap) in zip(axes, panels):
+        im = ax.imshow(
+            data,
+            aspect="auto",
+            cmap=cmap,
+            interpolation="nearest",
+            vmin=vmin,
+            vmax=vmax,
+        )
+        ax.set_title(f"{title}\n({data.shape[0]} regions x {data.shape[1]} timepoints)")
+        ax.set_xlabel("Timepoint")
+        ax.set_ylabel("Region")
+        fig.colorbar(im, ax=ax, label=name, fraction=0.046, pad=0.04)
+
+    fig.savefig(save_path.joinpath(f"{name}_img.png"), dpi=150)
+    plt.close()
+
+
 def parallel_plotting(recon, test_data, run, fname, input_len=None):
 
     n_traces = recon.shape[1]
@@ -337,8 +371,15 @@ def evaluate_on_train_end(
     model_fc = get_model_fc(
         model, cfg.data.train.step, 1200, len(labels), device, mean, std
     )
-    recon, recon_err = get_recon(
+    recon, real_data, recon_err = get_recon(
         model, test_data, cfg.data.train.step, device, mean, std
+    )
+    plot_trace_imgs(real_data, recon, run.joinpath("figures"), "signal")
+    plot_trace_imgs(
+        np.abs(np.fft.rfft(real_data, axis=0)),
+        np.abs(np.fft.rfft(recon, axis=0)),
+        run.joinpath("figures"),
+        "fft",
     )
     ecs = get_ec(
         model=model,
@@ -346,21 +387,41 @@ def evaluate_on_train_end(
         steps=cfg.data.train.step,
         pred_len=10,
         regions=[[i] for i in range(len(labels))],
-        pert_len=7,
+        pert_len=1,
         run=run,
         device=device,
     )
 
-    run.joinpath("ecs").mkdir(parents=True, exist_ok=True)
+    run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
     ecs = np.permute_dims(ecs, (1, 2, 0, 3))
     ecs = ecs.mean(axis=1)
     for i in range(ecs.shape[0]):
         pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
-            run.joinpath("ecs", f"ec_{i}.csv")
+            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
         )
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
-    # pd.DataFrame(ecs, index=labels, columns=labels).to_csv(run.joinpath("ec.csv"))
-    pd.DataFrame(recon).to_csv(run.joinpath("recon_signal", "signal.csv"))
+    ec = ecs.mean(axis=0)
+    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
+    plt.figure()
+    ec[np.eye(ec.shape[0]).astype(bool)] = 0
+    ec = ec / ec.max()
+    sns.heatmap(
+        ec,
+        cmap="RdBu_r",
+        cbar=False,
+        square=True,
+        xticklabels=False,
+        yticklabels=False,
+    )
+    plt.title("EC")
+    plt.tight_layout()
+    plt.savefig(run.joinpath("figures", "ec.png"))
+    pd.DataFrame(recon, columns=labels).to_csv(
+        run.joinpath("recon_signal", "recon_signal.csv")
+    )
+    pd.DataFrame(real_data, columns=labels).to_csv(
+        run.joinpath("recon_signal", "real_signal.csv")
+    )
     df.at[run.name, "recon_err"] = recon_err
     df.at[run.name, "recon_r"] = get_pearson_avg(
         get_signal_r(np.array(test_data), recon)
