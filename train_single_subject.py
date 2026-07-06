@@ -108,9 +108,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
                     num_steps_back = 8
                 else:
                     return x
-                b, t, r = x.shape
                 delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
-                # delayed_signals = torch.stack(delayed_signals, dim=0).reshape(-1, t, r)
                 prior_outs = [self.model(delayed_signals)]
                 for i in range(1, num_steps_back):
                     prior_outs.append(
@@ -131,9 +129,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
             else:
                 return x
         else:
-            b, t, r = x.shape
             delayed_signals = delay_signal(x, prev, self.num_steps, self.num_steps)
-            # prev_outs = torch.cat([self.model(inp) for inp in delayed_signals], dim=1)
             prior_outs = [self.model(delayed_signals)]
             for i in range(1, self.num_steps):
                 prior_outs.append(
