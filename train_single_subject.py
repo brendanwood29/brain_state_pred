@@ -46,16 +46,12 @@ def get_config() -> ListConfig | DictConfig:
 
 
 def delay_signal(x, prev_x, num_steps, num_steps_back):
+    """Combines previous timepoint and current timepoint and
+    returns the correct window of the signal"""
     comb = torch.cat([prev_x, x], dim=1)
-    # delayed_signals = [
-    #     comb[:, -num_steps - step : -step, :] for step in range(1, num_steps_back + 1)
-    # ]
     delayed_signals = comb[
         :, -num_steps - num_steps_back : -num_steps_back, :
     ]  # Just get the most in the past signal
-    # delayed_signals = list(
-    #     reversed(delayed_signals)
-    # )  # Reverse so list is oldest to newest
     return delayed_signals
 
 
@@ -108,44 +104,36 @@ class SingleSubjectBrainStateTrainer(Trainer):
                     num_steps_back = 8
                 else:
                     return x
-                delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
-                prior_outs = [self.model(delayed_signals)]
-                for i in range(1, num_steps_back):
-                    prior_outs.append(
-                        self.model(
-                            torch.cat(
-                                tensors=[
-                                    delayed_signals[:, i:, :],
-                                    torch.cat(prior_outs[:i], dim=1),
-                                ],
-                                dim=1,
-                            )
-                        )
-                    )
-                prev_outs = torch.cat(prior_outs, dim=1)
-                x[:, -num_steps_back:, :] = prev_outs
+                x[:, -num_steps_back:, :] = self.get_prior_steps(
+                    x, prev, num_steps_back
+                )
                 return x
-
             else:
                 return x
         else:
-            delayed_signals = delay_signal(x, prev, self.num_steps, self.num_steps)
-            prior_outs = [self.model(delayed_signals)]
-            for i in range(1, self.num_steps):
-                prior_outs.append(
-                    self.model(
-                        torch.cat(
-                            tensors=[
-                                delayed_signals[:, i:, :],
-                                torch.cat(prior_outs[:i], dim=1),
-                            ],
-                            dim=1,
-                        )
+            x[:, -self.num_steps :, :] = self.get_prior_steps(
+                x, prev, self.num_steps_back
+            )
+            return x
+
+    def get_prior_steps(self, x, prev, num_steps_back):
+        """Recursively builds signal from past signals.
+        Allows for the model to learn from its own predictions"""
+        delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
+        prior_outs = [self.model(delayed_signals)]
+        for i in range(1, num_steps_back):
+            prior_outs.append(
+                self.model(
+                    torch.cat(
+                        tensors=[
+                            delayed_signals[:, i:, :],
+                            torch.cat(prior_outs[:i], dim=1),
+                        ],
+                        dim=1,
                     )
                 )
-            prev_outs = torch.cat(prior_outs, dim=1)
-            x[:, -self.num_steps :, :] = prev_outs
-            return x
+            )
+        return torch.cat(prior_outs, dim=1)
 
 
 def main(cfg):
