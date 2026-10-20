@@ -1,0 +1,48 @@
+num_epochs: 60
+run_name: run_1 
+work_dir: results/baseline_test_set_redone
+optim:
+  name: adam
+  lr: 0.001
+  kwargs:
+    weight_decay: 5.0e-05
+loss:
+  name: mse_loss
+  kwargs: {}
+model:
+  name: npi_mlp
+  init: null
+  num_models_to_save: 2
+  print_summary: true
+  save_last: true
+  freeze_modules: null
+  unfreeze_modules: null
+  kwargs:
+    input_dim: 1200
+    hidden_dim: 800
+    latent_dim: 320
+    output_dim: 400
+    steps: 3
+device: all
+batch_pbar: false
+scheduler: null
+grad_clip: null
+early_stopping: null
+callbacks:
+  use_early_stopping: false
+  patience: 5
+  threshold: 0.0001
+batch_size: 100
+seed: 42
+k: 112
+data:
+  train_proportion: 0.8
+  noise_strength: 0.0
+  target_tr: 2
+  num_regions: 400
+  train:
+    step: ${model.kwargs.steps}
+    shuffle: true
+  val:
+    step: ${data.train.step}
+    shuffle: false
