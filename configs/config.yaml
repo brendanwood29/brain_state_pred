@@ -1,18 +1,18 @@
-num_epochs: 100
-batch_size: 1600
+num_epochs: 50
+batch_size: 3000
 device: all
 run_name: run_1
-work_dir: results/ddp_test
+work_dir: results/mamba_pt_12
 seed: 42
 batch_pbar: true
 optim:
   name: adamw
-  lr: 5e-4
+  lr: 1e-5
   kwargs:
     weight_decay: 5e-4
 loss:
   name: mse_loss
-  # kwargs:
+  # kwargs
   #   mse_weight: 1.0
   #   fc_weight: 0.5
 grad_clip:
@@ -24,9 +24,9 @@ scheduler:
   kwargs:
     max_lr: ${optim.lr}
     # total_steps: 1000
-    steps_per_epoch: 153
+    steps_per_epoch: 41 # For batch size of 3000==41
     epochs: ${num_epochs}
-    pct_start: 0.0
+    pct_start: 0.1
 model:
   name: mamba
   print_summary: true
