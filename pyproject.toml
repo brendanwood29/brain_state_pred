@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "debugpy>=1.8.20",
+    "dtw-python>=1.9.0",
     "matplotlib>=3.10.8",
     "nilearn>=0.13.1",
     "omegaconf>=2.3.0",
@@ -22,14 +23,11 @@ dependencies = [
 ]
 
 
+[tool.uv]
+torch-backend = "auto"
 [tool.uv.sources]
-torch = { index = "pytorch" }
 pytorch-trainer = { workspace = true, editable = true }
 
-[[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
 [tool.uv.extra-build-dependencies]
     torch-sparse = ["torch"]
 
@@ -41,11 +39,11 @@ members = [
 line-length = 88
 
 [tool.ruff.format]
-quote-style = "double"        # or "single"
+quote-style = "double"
 indent-style = "space"
-docstring-code-format = true  # formats code blocks inside docstrings
+docstring-code-format = true 
 [tool.ruff.lint]
-select = ["E", "F", "I"]  # E=pycodestyle, F=pyflakes, I=isort
+select = ["E", "F", "I"]  
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
