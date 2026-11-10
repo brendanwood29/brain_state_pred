@@ -57,22 +57,22 @@ def delay_signal(x, prev_x, num_steps, num_steps_back):
 
 def get_num_steps_back(num):
 
-    if num < 0.50:
+    if num < 0.55:
         num_steps_back = 1
-    elif num < 0.55:
-        num_steps_back = 2
     elif num < 0.60:
-        num_steps_back = 3
+        num_steps_back = 2
     elif num < 0.65:
-        num_steps_back = 4
-    elif num < 0.70:
-        num_steps_back = 5
-    elif num < 0.75:
-        num_steps_back = 6
-    elif num < 0.80:
-        num_steps_back = 7
+        num_steps_back = 3
+    # elif num < 0.70:
+    #     num_steps_back = 4
+    # elif num < 0.70:
+    #     num_steps_back = 5
+    # elif num < 0.75:
+    #     num_steps_back = 6
+    # elif num < 0.80:
+    #     num_steps_back = 7
     else:
-        num_steps_back = 8
+        num_steps_back = 4
     return num_steps_back
 
 
@@ -105,9 +105,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         )
         prob_num = self.step / self.num_model_steps  # Percentage of training finished
         if self.current_mode == "Train":
-            if torch.rand(1).item() < prob_include:
-                if prob_num < 0.4:
-                    return x
+            if (torch.rand(1).item() < prob_include) and (prob_num > 0.5):
                 num_steps_back = get_num_steps_back(prob_num)
                 x[:, -num_steps_back:, :] = self.get_prior_steps(
                     x, prev, num_steps_back
