@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-RUN git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
+ENV UV_INSTALL_DIR=/usr/local/bin
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 WORKDIR /projects/bwood/classes/brain_state_pred
 
