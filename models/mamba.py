@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from mamba_ssm import Mamba
 
-from .transformer_based import LoRA
+from .transformer import LoRA
 
 
 class TrainableRegionEmbedding(nn.Module):

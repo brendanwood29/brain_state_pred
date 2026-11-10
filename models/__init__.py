@@ -4,7 +4,7 @@ from .graph_based import GCN  # , STGCN
 from .lstm import LSTM
 from .mamba import MambaModel
 from .mlp import ANN_MLP, MLP
-from .transformer_based import TransformerModel
+from .transformer import TransformerModel
 
 npi_model_getter = ModelGetter(
     {
