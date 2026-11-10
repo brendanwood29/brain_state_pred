@@ -98,7 +98,7 @@ class LoRA(nn.Module):
         out_dim,
         alpha,
         use_bias: bool = False,
-        activation: Callable = nn.GELU,
+        activation: Callable[[], nn.Module] = nn.GELU,
         **kwargs,
     ):
         super().__init__()
