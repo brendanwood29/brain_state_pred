@@ -10,6 +10,7 @@ import scipy.signal as signal
 import seaborn as sns
 import svgutils.transform as sg
 import torch
+from dtw import dtw
 from nilearn.connectome import ConnectivityMeasure
 from scipy.signal import welch
 from scipy.stats import pearsonr
@@ -277,9 +278,18 @@ def get_psd_r(real_data, recon, tr, steps):
     return r
 
 
-def get_dtw():
+def get_dtw(real, recon, steps):
+    real = real[steps:]
+    recon = recon[steps:]
 
-    pass
+    dtws = []
+    norm_dtws = []
+    for i in range(real.shape[1]):
+        alignment = dtw(recon[:, i], real[:, i])
+        dtws.append(alignment.distance)  # type: ignore
+        norm_dtws.append(alignment.normalizedDistance)  # type: ignore
+
+    return np.mean(np.array(dtws)), np.mean(np.array(norm_dtws))
 
 
 def plot_traces(i, test_data, recon, save_path, input_len=None):
@@ -462,6 +472,11 @@ def evaluate_on_train_end(
             np.array(test_data), recon, tr=cfg.data.target_tr, steps=cfg.train.step
         )
     )
+
+    nominal_dtw, norm_dtw = get_dtw(real_data, recon, cfg.train.step)
+    df.at[run.name, "dtw"] = nominal_dtw
+    df.at[run.name, "norm_dtw"] = norm_dtw
+
     parallel_plotting(
         recon, test_data, run, "all_traces", input_len=cfg.data.train.step
     )
