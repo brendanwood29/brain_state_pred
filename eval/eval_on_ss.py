@@ -11,6 +11,7 @@ from omegaconf import OmegaConf
 from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 
+sys.path.append(".")
 from models import npi_model_getter
 from utils import (
     SingleSubjectBrainFuncRecursiveDataset,
@@ -44,9 +45,9 @@ def get_config() -> ListConfig | DictConfig:
 
 if __name__ == "__main__":
     cfg = get_config()
-    subject = Path(
-        "data/data_400p/hcp/sub-107220/ses-3T/func/sub-107220_ses-3T_task-rest_acq-lr_space-MNIICBM152_desc-preproc_cleaned-timeseries.csv"
-    )
+    # subject = Path(
+    #     "data/data_400p/hcp/sub-107220/ses-3T/func/sub-107220_ses-3T_task-rest_acq-lr_space-MNIICBM152_desc-preproc_cleaned-timeseries.csv"
+    # )
 
     with open("splits/splits_400p/val.json", "r") as f:
         data = json.load(f)
@@ -77,7 +78,7 @@ if __name__ == "__main__":
         )
         model = npi_model_getter(cfg.model.name, **cfg.model.kwargs)
         pt_file = torch.load(
-            f"results/mamba_val_set/{cfg.run_name}/models/final_model.pt"
+            f"results/block_state-(4, 32)_d_conv-2_expand-4_their-eval/{cfg.run_name}/models/final_model.pt"
         )
 
         weights = OrderedDict()
