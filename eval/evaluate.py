@@ -277,6 +277,11 @@ def get_psd_r(real_data, recon, tr, steps):
     return r
 
 
+def get_dtw():
+
+    pass
+
+
 def plot_traces(i, test_data, recon, save_path, input_len=None):
     fig, ax = plt.subplots(figsize=(6, 2))
     ax.plot(

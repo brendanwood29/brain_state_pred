@@ -12,11 +12,11 @@ from omegaconf.dictconfig import DictConfig
 from omegaconf.listconfig import ListConfig
 from tqdm import tqdm
 
+from eval import evaluate_on_train_end
 from models import npi_model_getter
 from pytorch_trainer import Trainer
 from utils import (
     SingleSubjectBrainFuncRecursiveDataset,
-    evaluate_on_train_end,
     get_loss_fn,
     split_single_subject,
 )
