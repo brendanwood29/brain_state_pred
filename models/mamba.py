@@ -32,7 +32,7 @@ class MambaModel(nn.Module):
                         expand=expand,
                         dropout=dropout,
                     ),
-                    LoRA(d_model, lora_r, d_model, lora_alpha, lora_bias, nn.SiLU),
+                    LoRA(d_model, lora_r, d_model, lora_alpha, lora_bias, nn.GELU),
                 )
                 for _ in range(num_blocks - 1)
             ]
@@ -66,14 +66,9 @@ class MambaModel(nn.Module):
                     for _ in range(num_blocks)
                 ]
             )
-        self.norms = nn.ModuleList(
-            [nn.LayerNorm([steps, d_model]) for _ in range(num_blocks)]
-        )
-        self.drop = nn.Dropout(dropout)
 
     def forward(self, x):
-        for block, norm in zip(self.blocks, self.norms):
+        for block in self.blocks:
             x = block(x)
-            x = norm(x)
 
         return x[:, [-1], :]
