@@ -19,14 +19,18 @@ For any issues please contact [Brendan Wood](mailto:bwt.wood@mail.utoronto.ca)
 # Dev Notes
 See [this](https://github.com/state-spaces/mamba/issues/842) post about installing Mamba
 easiest way right now is to run (after the environment has been created)
+CUDA 11
 ```bash
-    uv pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu11torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir --no-deps
+    uv pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu11torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir --no-deps && uv pip install einops huggingface_hub transformers
 ```
-Then install the extra dependencies independently (should be `einops`, `huggingface_hub`, and `transformers`)
+CUDA 12
+```bash
+    uv pip install https://github.com/state-spaces/mamba/releases/download/v2.3.2.post1/mamba_ssm-2.3.2.post1+cu12torch2.7cxx11abiTRUE-cp313-cp313-linux_x86_64.whl --no-cache-dir --no-deps && uv pip install einops huggingface_hub transformers
+```
 # To Run the Container
 
 ```bash
 
-docker run -d --user "$(id -u):$(id -g)"  --gpus=all --memory=256g --memory-swap=256 --shm-size=256g --hostname brain_state_pred --name brain_state_pred -v "$(pwd)":/projects/bwood/classes/brain_state_pred -w /projects/bwood/classes/brain_state_pred brain_state_pred sleep infinity
+docker run -d --gpus=all --memory=256g --memory-swap=256 --shm-size=256g --hostname brain_state_pred --name brain_state_pred -v "$(pwd)":/projects/bwood/classes/brain_state_pred -w /projects/bwood/classes/brain_state_pred brain_state_pred sleep infinity
 
 ```
