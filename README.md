@@ -27,6 +27,6 @@ Then install the extra dependencies independently (should be `einops`, `huggingf
 
 ```bash
 
-docker run -d --gpus=all --memory=256g --memory-swap=256 --shm-size=256g --hostname brain_state_pred --name brain_state_pred -v "$(pwd)":/projects/bwood/classes/brain_state_pred -w /projects/bwood/classes/brain_state_pred brain_state_pred sleep infinity
+docker run -d --user "$(id -u):$(id -g)"  --gpus=all --memory=256g --memory-swap=256 --shm-size=256g --hostname brain_state_pred --name brain_state_pred -v "$(pwd)":/projects/bwood/classes/brain_state_pred -w /projects/bwood/classes/brain_state_pred brain_state_pred sleep infinity
 
 ```
