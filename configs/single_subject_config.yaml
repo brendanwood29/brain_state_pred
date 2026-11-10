@@ -2,7 +2,7 @@ num_epochs: 400
 batch_size: 82 # 82 for maghz gpu - higher for fourier
 device: cuda
 run_name: run_1
-work_dir: results/block_state-(4, 32)_d_conv-2_expand-4_their-eval
+work_dir: results/combo_model
 seed: 42
 k: 117 # 70 for 2 gpus and 200 epochs, 117 for 400 epochs - this puts randn = 0.2 at step 200
 # batch_pbar: true
@@ -39,7 +39,7 @@ scheduler:
     div_factor: 250.0
     final_div_factor: 100000.0
 model:
-  name: mamba
+  name: combo
   print_summary: true
   num_models_to_save: 2
   save_last: true
@@ -53,15 +53,32 @@ model:
   #   weights: results/mamba_pt_12_low-lr/run_1/models/run_1-epoch-37_best_val_loss_0.2695.pt 
   #   weights_only: true
   #   strict: false
-  ########## Mamba Model
+  ########## Combo Model
   kwargs:
-    num_blocks: 4
-    d_model: ${data.num_regions}
-    d_state: 32
-    d_conv: 2
-    expand: 4
-    dropout: 0.1
+    num_blocks: 1
+    in_features: ${data.num_regions}
     steps: 8
+    num_mamba_blocks: 1
+    trfrm_kwargs:
+      num_heads: 2
+    mamba_kwargs:
+      d_model: ${data.num_regions}
+      d_state: 64
+      d_conv: 2
+      expand: 4
+      dropout: 0.1
+    ffn_kwargs:
+      num_layers: 3
+      ffn_dropout: 0.1
+  ########## Mamba Model
+  # kwargs:
+  #   num_blocks: 4
+  #   d_model: ${data.num_regions}
+  #   d_state: 32
+  #   d_conv: 2
+  #   expand: 4
+  #   dropout: 0.1
+  #   steps: 8
     # use_lora: true
     # lora_r: 256
     # lora_alpha: ${model.kwargs.lora_r}
