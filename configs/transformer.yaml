@@ -1,0 +1,56 @@
+num_epochs: 400
+batch_size: 82 # 82 for maghz gpu - higher for fourier
+device: cuda
+run_name: run_1
+work_dir: results/transformer_val_set_their-eval
+seed: 42
+k: 117 # 70 for 2 gpus and 200 epochs, 117 for 400 epochs - this puts randn = 0.2 at step 200
+optim:
+  name: adamw
+  lr: 5e-4
+  kwargs:
+    weight_decay: 5e-5
+loss:
+  name: mse_loss
+grad_clip:
+  max_norm: 1.0
+scheduler:
+  name: onecycle
+  kwargs:
+    max_lr: ${optim.lr}
+    pct_start: 0.0
+    epochs: ${num_epochs}
+    steps_per_epoch: 4
+    div_factor: 250.0
+    final_div_factor: 100000.0
+model:
+  name: transformer
+  init: null
+  num_models_to_save: 2
+  print_summary: true
+  save_last: true
+  freeze_modules: null
+  unfreeze_modules: null
+  kwargs:
+    in_features: ${data.num_regions}
+    num_heads: 2
+    steps: 8
+    num_blocks: 1
+    attn_drop_prob: 0.25
+    final_drop_prob: 0.25
+    ffn_dropout: 0.25
+callbacks:
+  use_early_stopping: false
+  patience: 5
+  threshold: 0.0001
+data:
+  train_proportion: 0.8
+  noise_strength: 1.0
+  target_tr: 2
+  num_regions: 400
+  train:
+    step: ${model.kwargs.steps}
+    shuffle: true
+  val:
+    step: ${data.train.step}
+    shuffle: false
