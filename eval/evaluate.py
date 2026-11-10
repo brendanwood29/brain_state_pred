@@ -414,7 +414,7 @@ def evaluate_on_train_end(
     # model_fc = get_model_fc_npi_method(
     #     model, cfg.data.train.step, 1200, len(labels), device, mean, std
     # )
-    model_fc = get_model_fc(recon, cfg.train.step)
+    model_fc = get_model_fc(recon, cfg.data.train.step)
     plot_trace_imgs(real_data, recon, run.joinpath("figures"), "signal")
     plot_trace_imgs(
         np.abs(np.fft.rfft(real_data, axis=0)),
@@ -465,15 +465,15 @@ def evaluate_on_train_end(
     )
     df.at[run.name, "recon_err"] = recon_err
     df.at[run.name, "recon_r"] = get_pearson_avg(
-        get_signal_r(np.array(test_data), recon, cfg.train.step)
+        get_signal_r(np.array(test_data), recon, cfg.data.train.step)
     )
     df.at[run.name, "psd_r"] = get_pearson_avg(
         get_psd_r(
-            np.array(test_data), recon, tr=cfg.data.target_tr, steps=cfg.train.step
+            np.array(test_data), recon, tr=cfg.data.target_tr, steps=cfg.data.train.step
         )
     )
 
-    nominal_dtw, norm_dtw = get_dtw(real_data, recon, cfg.train.step)
+    nominal_dtw, norm_dtw = get_dtw(real_data, recon, cfg.data.train.step)
     df.at[run.name, "dtw"] = nominal_dtw
     df.at[run.name, "norm_dtw"] = norm_dtw
 
