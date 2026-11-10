@@ -25,20 +25,22 @@ def get_config() -> ListConfig | DictConfig:
 if __name__ == "__main__":
     # All subjects
     params_to_check = {
-        "k": [],
-        "lr": [5e-4],
-        "dropout": [0.30],
+        "block_state": [(2, 128), (3, 64), (4, 32)],
+        "d_conv": [2, 4, 6],
+        "expand": [2, 3, 4],
+        # "dropout": [0.1, 0.3],
     }
     print(len(ParameterGrid(params_to_check)))
     for i, grid in enumerate(ParameterGrid(params_to_check)):
         cfg = get_config()
 
-        cfg.work_dir = "results/mamba_ss_hparam/" + "_".join(
+        cfg.work_dir = "results/mamba_arch_hparam/" + "_".join(
             [f"{x}-{y}" for x, y in grid.items()]
         )
-        cfg.k = grid["k"]
-        cfg.model.kwargs.dropout = grid["dropout"]
-        cfg.scheduler.kwargs.max_lr = grid["lr"]
+        cfg.model.kwargs.num_blocks = grid["block_state"][0]
+        cfg.model.kwargs.d_state = grid["block_state"][1]
+        cfg.model.kwargs.d_conv = grid["d_conv"]
+        cfg.model.kwargs.expand = grid["expand"]
         main(cfg)
 
 
