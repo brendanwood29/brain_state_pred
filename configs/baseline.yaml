@@ -1,6 +1,6 @@
 num_epochs: 60
 run_name: run_1 
-work_dir: results/baseline_test_set_redone
+work_dir: results/baseline_val_set_their-eval
 optim:
   name: adam
   lr: 0.001
@@ -23,7 +23,7 @@ model:
     latent_dim: 320
     output_dim: 400
     steps: 3
-device: all
+device: cuda
 batch_pbar: false
 scheduler: null
 grad_clip: null

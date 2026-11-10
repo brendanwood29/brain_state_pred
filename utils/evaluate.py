@@ -30,7 +30,7 @@ def get_pearson_avg(arr, axis=None):
 
 
 def remove_diag(arr):
-    return arr[~np.eye(arr.shape[0], dtype=bool)]
+    return np.triu(arr, k=1).flatten()
 
 
 def sort_fn(path: Path):
@@ -59,32 +59,44 @@ def bandpass(data, low, high, fs, order=4):
     return signal.filtfilt(b, a, data, axis=0).copy()
 
 
+def get_recon_npi_method(model, real_data, steps, device, mean, std):
+    model.eval()
+    mean = mean.to(device)
+    std = std.to(device)
+    outputs = [real_data[x] for x in range(steps)]
+    for i in range(0, real_data.shape[0] - steps, 1):
+        sim_input = torch.vstack([x for x in real_data[i : i + steps]]).to(
+            device=device, dtype=torch.float
+        )
+        inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
+        outputs.append(inter_output[-1])
+        outputs = [x.to("cpu") for x in outputs]
+    outputs = torch.vstack(outputs).detach().cpu().numpy()
+    real_data = real_data.cpu().numpy()
+    return (
+        outputs,
+        real_data,
+        np.mean(
+            (real_data[steps : outputs.shape[0]] - outputs[steps : real_data.shape[0]])
+            ** 2
+        ),
+    )
+
+
 def get_recon(model, real_data, steps, device, mean, std):
     model.eval()
     mean = mean.to(device)
     std = std.to(device)
     outputs = [real_data[x] for x in range(steps)]
-    # for i in range(0, real_data.shape[0] - steps, 1):
     while len(outputs) < real_data.shape[0]:
         sim_input = torch.vstack([x.to(device) for x in outputs[-steps:]]).to(
             device=device, dtype=torch.float
         )
-        # sim_input = torch.vstack([x for x in real_data[i : i + steps]]).to(
-        #     device=device, dtype=torch.float
-        # )
-        # inter_output = model(sim_input.unsqueeze(0).to(device)).reshape(2, 5, -1)
         inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
-        # inter_output = (inter_output * std) + mean
-        # inter_output = torch.fft.irfft(
-        #     torch.complex(inter_output[0], inter_output[1]), dim=0
-        # )
         outputs.append(inter_output[-1])
-        # outputs.extend([x for x in inter_output])
-        # outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1, :])
-        # outputs.extend([x for x in model(sim_input.unsqueeze(0).to(device)).squeeze(0)])
         outputs = [x.to("cpu") for x in outputs]
+
     outputs = torch.vstack(outputs).detach().cpu().numpy()
-    # outputs = bandpass(outputs, 0.01, 0.1, 0.5)
     real_data = real_data.cpu().numpy()
     return (
         outputs,
@@ -162,7 +174,9 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
     return np.array(ecs)  # perturbed region, pred_len, starting_point, output_regions
 
 
-def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
+def get_model_fc_npi_method(
+    model, steps, sim_data_length, num_regions, device, mean, std
+):
 
     rng = np.random.default_rng(seed=42)
 
@@ -178,15 +192,8 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
         sim_input = torch.vstack(
             [x.to(device) for x in outputs[-steps:]]
         ) + torch.tensor(noise, dtype=torch.float).to(device)
-        # outputs.append(model(sim_input.unsqueeze(0).to(device)).squeeze(0)[-1])
         inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
-        # inter_output = model(sim_input.unsqueeze(0).to(device)).reshape(2, 5, -1)
-        # inter_output = (inter_output * std) + mean
-        # inter_output = torch.fft.irfft(
-        #     torch.complex(inter_output[0], inter_output[1]), dim=0
-        # )
         outputs.append(inter_output[-1])
-        # outputs.extend([x for x in inter_output])
         outputs = [x.to("cpu") for x in outputs]
 
     outputs = torch.vstack(outputs)
@@ -198,6 +205,17 @@ def get_model_fc(model, steps, sim_data_length, num_regions, device, mean, std):
         )
     except ValueError:
         connectome = np.zeros((outputs.shape[1], outputs.shape[1]))
+        return connectome
+    return connectome[0]
+
+
+def get_model_fc(pred_signal, steps):
+
+    pred = pred_signal[steps:]
+    try:
+        connectome = ConnectivityMeasure(kind="correlation").fit_transform(pred)
+    except ValueError:
+        connectome = np.zeros((pred_signal.shape[1], pred_signal.shape[1]))
         return connectome
     return connectome[0]
 
@@ -239,12 +257,16 @@ def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, 
     return connectome[0]
 
 
-def get_signal_r(real_data, recon):
+def get_signal_r(real_data, recon, steps):
+    real_data = real_data[steps:]
+    recon = recon[steps:]
     r, p = pearsonr(real_data, recon, axis=0)
     return r
 
 
-def get_psd_r(real_data, recon, tr):
+def get_psd_r(real_data, recon, tr, steps):
+    real_data = real_data[steps:]
+    recon = recon[steps:]
     real_psd = welch(
         real_data, fs=1 / tr, nperseg=real_data.shape[0], axis=0, return_onesided=True
     )
@@ -368,12 +390,16 @@ def evaluate_on_train_end(
 
     model.eval()
     model.to(device)
-    model_fc = get_model_fc(
-        model, cfg.data.train.step, 1200, len(labels), device, mean, std
-    )
+    # recon, real_data, recon_err = get_recon_npi_method(
+    #     model, test_data, cfg.data.train.step, device, mean, std
+    # )
     recon, real_data, recon_err = get_recon(
         model, test_data, cfg.data.train.step, device, mean, std
     )
+    # model_fc = get_model_fc_npi_method(
+    #     model, cfg.data.train.step, 1200, len(labels), device, mean, std
+    # )
+    model_fc = get_model_fc(recon, cfg.train.step)
     plot_trace_imgs(real_data, recon, run.joinpath("figures"), "signal")
     plot_trace_imgs(
         np.abs(np.fft.rfft(real_data, axis=0)),
@@ -381,41 +407,41 @@ def evaluate_on_train_end(
         run.joinpath("figures"),
         "fft",
     )
-    ecs = get_ec(
-        model=model,
-        real_data=test_data,
-        steps=cfg.data.train.step,
-        pred_len=10,
-        regions=[[i] for i in range(len(labels))],
-        pert_len=1,
-        run=run,
-        device=device,
-    )
-
-    run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
-    ecs = np.permute_dims(ecs, (1, 2, 0, 3))
-    ecs = ecs.mean(axis=1)
-    for i in range(ecs.shape[0]):
-        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
-            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
-        )
+    # ecs = get_ec(
+    #     model=model,
+    #     real_data=test_data,
+    #     steps=cfg.data.train.step,
+    #     pred_len=10,
+    #     regions=[[i] for i in range(len(labels))],
+    #     pert_len=1,
+    #     run=run,
+    #     device=device,
+    # )
+    #
+    # run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
+    # ecs = np.permute_dims(ecs, (1, 2, 0, 3))
+    # ecs = ecs.mean(axis=1)
+    # for i in range(ecs.shape[0]):
+    #     pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
+    #         run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
+    #     )
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
-    ec = ecs.mean(axis=0)
-    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
-    plt.figure()
-    ec[np.eye(ec.shape[0]).astype(bool)] = 0
-    ec = ec / ec.max()
-    sns.heatmap(
-        ec,
-        cmap="RdBu_r",
-        cbar=False,
-        square=True,
-        xticklabels=False,
-        yticklabels=False,
-    )
-    plt.title("EC")
-    plt.tight_layout()
-    plt.savefig(run.joinpath("figures", "ec.png"))
+    # ec = ecs.mean(axis=0)
+    # pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
+    # plt.figure()
+    # ec[np.eye(ec.shape[0]).astype(bool)] = 0
+    # ec = ec / ec.max()
+    # sns.heatmap(
+    #     ec,
+    #     cmap="RdBu_r",
+    #     cbar=False,
+    #     square=True,
+    #     xticklabels=False,
+    #     yticklabels=False,
+    # )
+    # plt.title("EC")
+    # plt.tight_layout()
+    # plt.savefig(run.joinpath("figures", "ec.png"))
     pd.DataFrame(recon, columns=labels).to_csv(
         run.joinpath("recon_signal", "recon_signal.csv")
     )
@@ -424,10 +450,12 @@ def evaluate_on_train_end(
     )
     df.at[run.name, "recon_err"] = recon_err
     df.at[run.name, "recon_r"] = get_pearson_avg(
-        get_signal_r(np.array(test_data), recon)
+        get_signal_r(np.array(test_data), recon, cfg.train.step)
     )
     df.at[run.name, "psd_r"] = get_pearson_avg(
-        get_psd_r(np.array(test_data), recon, tr=cfg.data.target_tr)
+        get_psd_r(
+            np.array(test_data), recon, tr=cfg.data.target_tr, steps=cfg.train.step
+        )
     )
     parallel_plotting(
         recon, test_data, run, "all_traces", input_len=cfg.data.train.step

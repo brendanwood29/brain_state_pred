@@ -48,6 +48,8 @@ def split_by_subjects(data_dir, splits):
     test = {}
 
     for dataset in data_dir.glob("*.json"):
+        if "aabc" in dataset.name:
+            continue
         name = dataset.name.removesuffix(".json")
         with open(dataset, "r") as f:
             data = json.load(f)
@@ -94,8 +96,8 @@ def split_single_subject(data_path, train_proportion):
 
 
 if __name__ == "__main__":
-    data_dir = Path("data_1000p")
-    splits = Path("splits_1000p")
+    data_dir = Path("data/data_400p")
+    splits = Path("splits/splits_400p")
     splits.mkdir(parents=True, exist_ok=True)
 
     split_by_subjects(data_dir, splits)

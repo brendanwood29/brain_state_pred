@@ -8,6 +8,8 @@ def make_metadata(dataset_path: Path, dataset_name: str):
     dataset = defaultdict(lambda: defaultdict(dict))
 
     for file in dataset_path.rglob("**/*timeseries.csv"):
+        if "ses-V1" not in file.name:
+            continue
         dataset[file.parts[-4]][file.parts[-3]]["file_path"] = str(file)
         dataset[file.parts[-4]][file.parts[-3]]["tr"] = (
             0.72  # FIXME Make this read the tr from the json file, for now this is
@@ -21,7 +23,8 @@ def make_metadata(dataset_path: Path, dataset_name: str):
 if __name__ == "__main__":
     datasets = {
         # 'hcp': 'data_100p/hcp'
-        "hcp": "data_1000p/hcp"
+        # "hcp": "data/data_400p/hcp"
+        "aabc": "data/data_400p/aabc"
     }
 
     for name, path in datasets.items():
