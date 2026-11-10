@@ -13,7 +13,6 @@ from .dataset import (
     SingleSubjectBrainFuncSTGCNDataset,
     SingleSubjectFFTFuncDataset,
 )
-from .evaluate import evaluate_on_train_end
 from .loss_fns import MSE1DLoss, MSEFCLoss, RealImagMSE, ReconFourierLoss
 from .make_datasplits import split_single_subject
 
@@ -26,7 +25,6 @@ __all__ = [
     "BrainFuncRecursiveDataset",
     "split_single_subject",
     "get_loss_fn",
-    "evaluate_on_train_end",
 ]
 
 
