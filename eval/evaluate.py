@@ -136,43 +136,66 @@ def perturb_signal(inp, regions, length, strength, how="impulse"):
 
 def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
 
+    # Create starting points at all possible starting points
+    # (steps, regions) len num start pts
     real_inputs = [
         real_data[x : x + steps] for x in range(real_data.shape[0] - steps - pred_len)
-    ]  # Create starting points at all possible starting points
+    ]
+
+    # array of (num starting points, steps, regions)
     stacked_inputs = torch.stack(real_inputs, dim=0)
+
+    # makes a list of arrays size (num start points, regions) of len steps
     stacked_list = [stacked_inputs[:, x, :] for x in range(stacked_inputs.shape[1])]
     real_inputs = copy.deepcopy(stacked_list)
+
+    # Makes unperturbed prediction
     for _ in range(pred_len):
+        # Making input tensor of length steps, stack along time dim
         inter_input_real = torch.stack(real_inputs[-steps:], dim=1).to(device)
+        # output is of size (num start points, 1, regions)
         real_inputs.append(model(inter_input_real).squeeze(1).to("cpu"))
+
+    # `real` is time indexed, so slicing [steps:] yeilds just predicted timepoints
     real = torch.stack(real_inputs[steps:], dim=1)
+    to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
+
     real_path = run.joinpath("ecs", "signals", "real")
     real_path.mkdir(parents=True, exist_ok=True)
-    to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
+
+    # Save (time, regions) array for each starting point
     for i in range(to_save.shape[0]):
         pd.DataFrame(to_save[i]).to_csv(real_path.joinpath(f"start-pt_{i}.csv"))
 
     pred_path = run.joinpath("ecs", "signals", "pred")
     pred_path.mkdir(parents=True, exist_ok=True)
+
     ecs = []
     for i, region in enumerate(regions):
+        # `pert_inputs` is a time indexed list of size (starting pts, regions)
         pert_inputs = copy.deepcopy(stacked_list)
         pert_inputs[-pert_len:] = perturb_signal(
             pert_inputs, region, pert_len, strength=5, how="impulse"
         )  # Replace the real signal with perturbed signal
+
         for _ in range(pred_len):
             inter_input_pert = torch.stack(pert_inputs[-steps:], dim=1).to(device)
             pert_inputs.append(model(inter_input_pert).squeeze(1).to("cpu"))
+
         pred_path.joinpath(f"pert_{i}").mkdir(parents=True, exist_ok=True)
+
+        # `pert` is time indexed, so slicing [steps:] yeilds just predicted timepoints
+        # final size of (starting points, pred_len, regions)
         pert = torch.stack(pert_inputs[steps:], dim=1).cpu()
         to_save = torch.stack(pert_inputs, dim=1).cpu().numpy()
+
         for j in range(to_save.shape[0]):
             pd.DataFrame(to_save[j]).to_csv(
                 pred_path.joinpath(f"pert_{i}", f"start-pt_{j}.csv")
             )
         ecs.append((pert - real).numpy())
 
-    return np.array(ecs)  # perturbed region, pred_len, starting_point, output_regions
+    return np.array(ecs)  # perturbed region, starting_point, pred_len, output_regions
 
 
 def get_model_fc_npi_method(
@@ -422,41 +445,45 @@ def evaluate_on_train_end(
         run.joinpath("figures"),
         "fft",
     )
-    # ecs = get_ec(
-    #     model=model,
-    #     real_data=test_data,
-    #     steps=cfg.data.train.step,
-    #     pred_len=10,
-    #     regions=[[i] for i in range(len(labels))],
-    #     pert_len=1,
-    #     run=run,
-    #     device=device,
-    # )
-    #
-    # run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
-    # ecs = np.permute_dims(ecs, (1, 2, 0, 3))
-    # ecs = ecs.mean(axis=1)
-    # for i in range(ecs.shape[0]):
-    #     pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
-    #         run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
-    #     )
+    ecs = get_ec(
+        model=model,
+        real_data=test_data,
+        steps=cfg.data.train.step,
+        pred_len=10,
+        regions=[[i] for i in range(len(labels))],
+        pert_len=1,
+        run=run,
+        device=device,
+    )
+
+    print(ecs.shape)
+    run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
+    ecs = np.permute_dims(
+        ecs, (1, 2, 0, 3)
+    )  # permute to (starting_point, pred_len, perturbed_region, output_region)
+    ecs = ecs.mean(axis=0)
+    for i in range(ecs.shape[0]):
+        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
+            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
+        )
     run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
-    # ec = ecs.mean(axis=0)
-    # pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
-    # plt.figure()
-    # ec[np.eye(ec.shape[0]).astype(bool)] = 0
-    # ec = ec / ec.max()
-    # sns.heatmap(
-    #     ec,
-    #     cmap="RdBu_r",
-    #     cbar=False,
-    #     square=True,
-    #     xticklabels=False,
-    #     yticklabels=False,
-    # )
-    # plt.title("EC")
-    # plt.tight_layout()
-    # plt.savefig(run.joinpath("figures", "ec.png"))
+    ec = ecs.mean(axis=0)
+    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
+    plt.figure()
+    ec[np.eye(ec.shape[0]).astype(bool)] = 0
+    ec = ec / np.max(ec).max()
+    sns.heatmap(
+        ec,
+        cmap="RdBu_r",
+        cbar=True,
+        square=True,
+        xticklabels=False,
+        yticklabels=False,
+        center=0,
+    )
+    plt.title("EC")
+    plt.tight_layout()
+    plt.savefig(run.joinpath("figures", "ec.png"))
     pd.DataFrame(recon, columns=labels).to_csv(
         run.joinpath("recon_signal", "recon_signal.csv")
     )
@@ -512,10 +539,11 @@ def evaluate_on_train_end(
         vmin=-1.0,
         vmax=1.0,
         cmap="RdBu_r",
-        cbar=False,
+        cbar=True,
         square=True,
         xticklabels=False,
         yticklabels=False,
+        center=0,
     )
     sns.heatmap(
         model_fc,
@@ -523,13 +551,15 @@ def evaluate_on_train_end(
         vmin=-1.0,
         vmax=1.0,
         cmap="RdBu_r",
-        cbar=False,
+        cbar=True,
         square=True,
         xticklabels=False,
         yticklabels=False,
+        center=0,
     )
     ax1.set_title("Empirical FC")
     ax2.set_title("Model FC")
+    plt.tight_layout()
     plt.savefig(run.joinpath("figures", "fc_heatmap.png"))
     plt.close()
     run.joinpath("connectomes").mkdir(parents=True, exist_ok=True)
