@@ -2,7 +2,7 @@ from pytorch_trainer import ModelGetter
 
 from .graph_based import GCN  # , STGCN
 from .lstm import LSTM
-from .mamba import MambaModel
+from .mamba import MambaModel, OldMamba
 from .mlp import ANN_MLP, MLP
 from .transformer import TransformerMambaModel, TransformerModel
 
@@ -16,5 +16,6 @@ npi_model_getter = ModelGetter(
         # "stgcn": STGCN,
         "lstm": LSTM,
         "mamba": MambaModel,
+        "old_mamba": OldMamba,
     }
 )
