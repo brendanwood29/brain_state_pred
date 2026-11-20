@@ -90,9 +90,13 @@ class SingleSubjectBrainStateTrainer(Trainer):
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
         y = y.reshape(B, -1, self.cfg.data.num_regions)
-        self.model.eval()
-        x = self.schedule_recursion(x, prev)
-        self.model.train()
+        if self.current_mode == "Train":
+            self.model.eval()
+            x = self.schedule_recursion(x, prev)
+            self.model.train()
+        else:
+            x = self.schedule_recursion(x, prev)
+
         y_hat = self.model(x)
         loss = self.loss_fn(y_hat, y)
         return loss, B
@@ -142,8 +146,11 @@ def main(cfg):
     # Uncomment below to allow for fine tuning on only testing subjects
     # with open("splits/splits_400p_aabc/val.json", "r") as f:
     with open("splits/splits_400p/val.json", "r") as f:
+        # with open("splits/splits_400p_rnn/train.json", "r") as f:
+        # with open("splits/splits_66p/train.json", "r") as f:
         data = json.load(f)
     input_csv_list = [data[sub]["ses-3T"] for sub in data]
+    # input_csv_list = [data[sub]["ses-1"] for sub in data]
     for inp in tqdm(input_csv_list):
         subject = Path(inp["file_path"])
         tr = inp["tr"]
@@ -155,10 +162,10 @@ def main(cfg):
             continue
 
         train_data, test_data = split_single_subject(subject, cfg.data.train_proportion)
-        fc = pd.read_csv(
-            subject.with_name(subject.name.replace("cleaned-timeseries", "connectome")),
-            index_col=0,
-        ).to_numpy()
+        # fc = pd.read_csv(
+        #     subject.with_name(subject.name.replace("cleaned-timeseries", "connectome")),
+        #     index_col=0,
+        # ).to_numpy()
 
         # single subject brain func
         train_dataset = SingleSubjectBrainFuncRecursiveDataset(
@@ -185,10 +192,10 @@ def main(cfg):
                 evaluate_on_train_end(
                     cfg,
                     # train_dataset.scaler.transform(test_data), # type: ignore
-                    test_dataset.data,
-                    fc,
+                    train_dataset.data[:100],
+                    None,
                     trainer.model,
-                    label_file="data/utils/400p_labels.txt",
+                    label_file="data/utils/66p_labels.txt",
                     # mean=train_dataset.mean,
                     # std=train_dataset.std,
                     mean=torch.tensor(0),
