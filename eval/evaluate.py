@@ -11,6 +11,7 @@ import seaborn as sns
 import svgutils.transform as sg
 import torch
 from dtw import dtw
+from matplotlib.colors import TwoSlopeNorm
 from nilearn.connectome import ConnectivityMeasure
 from scipy.signal import welch
 from scipy.stats import pearsonr
@@ -110,15 +111,25 @@ def get_recon(model, real_data, steps, device, mean, std):
 
 
 def perturb_signal(inp, regions, length, strength, how="impulse"):
-    if length > 1:
-        inp = torch.stack(inp[-length:], dim=1)
-    else:
-        inp = inp[-1].unsqueeze(1)
+
+    inp = torch.stack(inp[-length:], dim=1)
+
     if how == "impulse":
+        inp = inp[:, [-1], :]
         inp[:, :, regions] = inp[:, :, regions] + strength * torch.ones(
-            (inp.shape[0], length, len(regions)), device=inp.device, dtype=inp.dtype
+            (inp.shape[0], 1, 1), device=inp.device, dtype=inp.dtype
         )  # adding purturbation to signal
 
+    elif how == "npi":
+        strengths = torch.std(inp, dim=1)  # take std on the time dim (1)
+        strengths = strengths[:, regions].unsqueeze(1)  # get just the std of the roi
+        perturbed_signal = (
+            0.5
+            * strengths
+            * torch.ones((inp.shape[0], 1, 1), device=inp.device, dtype=inp.dtype)
+        )  # adding purturbation
+        inp[:, [-1], [regions]] = inp[:, [-1], [regions]] + perturbed_signal
+        return [inp[:, -1, :]]
     elif how == "hrf":
         hrf = (
             torch.tensor(
@@ -157,7 +168,7 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
         real_inputs.append(model(inter_input_real).squeeze(1).to("cpu"))
 
     # `real` is time indexed, so slicing [steps:] yeilds just predicted timepoints
-    real = torch.stack(real_inputs[steps:], dim=1)
+    real = torch.stack(real_inputs[steps + 1 :], dim=1)
     to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
 
     real_path = run.joinpath("ecs", "signals", "real")
@@ -175,7 +186,12 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
         # `pert_inputs` is a time indexed list of size (starting pts, regions)
         pert_inputs = copy.deepcopy(stacked_list)
         pert_inputs[-pert_len:] = perturb_signal(
-            pert_inputs, region, pert_len, strength=5, how="impulse"
+            pert_inputs,
+            region,
+            # pert_len,
+            8,
+            strength=5,
+            how="impulse",
         )  # Replace the real signal with perturbed signal
 
         for _ in range(pred_len):
@@ -186,7 +202,7 @@ def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
 
         # `pert` is time indexed, so slicing [steps:] yeilds just predicted timepoints
         # final size of (starting points, pred_len, regions)
-        pert = torch.stack(pert_inputs[steps:], dim=1).cpu()
+        pert = torch.stack(pert_inputs[steps + 1 :], dim=1).cpu()
         to_save = torch.stack(pert_inputs, dim=1).cpu().numpy()
 
         for j in range(to_save.shape[0]):
@@ -347,6 +363,10 @@ def plot_trace_imgs(real, recon, save_path, name):
 
     # Match every panel's colorbar range to the real signal's min/max.
     vmin, vmax = real.min(), real.max()
+    if vmin > 0:
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=(vmax - vmin) / 2, vmax=vmax)
+    else:
+        norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
 
     fig, axes = plt.subplots(1, 3, figsize=(28, 8), constrained_layout=True)
     for ax, (title, data, cmap) in zip(axes, panels):
@@ -355,8 +375,7 @@ def plot_trace_imgs(real, recon, save_path, name):
             aspect="auto",
             cmap=cmap,
             interpolation="nearest",
-            vmin=vmin,
-            vmax=vmax,
+            norm=norm,
         )
         ax.set_title(f"{title}\n({data.shape[0]} regions x {data.shape[1]} timepoints)")
         ax.set_xlabel("Timepoint")
@@ -399,6 +418,39 @@ def parallel_plotting(recon, test_data, run, fname, input_len=None):
     shutil.rmtree(panel_path)
 
 
+def plot_fc_diff(real_fc, model_fc, run):
+
+    fig, axes = plt.subplots(
+        1,
+        3,
+        figsize=(28, 8),
+    )
+    ax1, ax2, ax3 = axes
+
+    heatmap_kwargs = dict(
+        vmin=-1.0,
+        vmax=1.0,
+        cmap="RdBu_r",
+        center=0,
+        cbar=False,
+        square=True,
+        xticklabels=False,
+        yticklabels=False,
+    )
+
+    sns.heatmap(real_fc, ax=ax1, **heatmap_kwargs)  # type: ignore
+    hm = sns.heatmap(model_fc, ax=ax2, **heatmap_kwargs)  # type: ignore
+    sns.heatmap(real_fc - model_fc, ax=ax3, **heatmap_kwargs)  # type: ignore
+
+    fig.colorbar(hm.collections[0], ax=[ax1, ax2, ax3], shrink=0.6, pad=0.02)
+    ax1.set_title("Empirical FC")
+    ax2.set_title("Model FC")
+    ax3.set_title("Empirical - Model FC")
+
+    plt.savefig(run.joinpath("figures", "fc_heatmap.png"), bbox_inches="tight")
+    plt.close()
+
+
 def evaluate_on_train_end(
     cfg: DictConfig | ListConfig,
     test_data,
@@ -413,6 +465,12 @@ def evaluate_on_train_end(
     warnings.simplefilter("ignore", FutureWarning)
     work_dir = Path(cfg.work_dir)
     run = work_dir.joinpath(cfg.run_name)
+    # Making dirs
+    run.joinpath("figures").mkdir(parents=True, exist_ok=True)
+    run.joinpath("connectomes").mkdir(parents=True, exist_ok=True)
+    run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
+    run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
+
     try:
         df = pd.read_csv(f"{work_dir.joinpath(work_dir.name)}.csv", index_col=0)
     except FileNotFoundError:
@@ -438,6 +496,10 @@ def evaluate_on_train_end(
     #     model, cfg.data.train.step, 1200, len(labels), device, mean, std
     # )
     model_fc = get_model_fc(recon, cfg.data.train.step)
+    real_fc = ConnectivityMeasure(kind="correlation").fit_transform(
+        test_data.detach().cpu().numpy()
+    )[0]
+
     plot_trace_imgs(real_data, recon, run.joinpath("figures"), "signal")
     plot_trace_imgs(
         np.abs(np.fft.rfft(real_data, axis=0)),
@@ -445,45 +507,6 @@ def evaluate_on_train_end(
         run.joinpath("figures"),
         "fft",
     )
-    ecs = get_ec(
-        model=model,
-        real_data=test_data,
-        steps=cfg.data.train.step,
-        pred_len=10,
-        regions=[[i] for i in range(len(labels))],
-        pert_len=1,
-        run=run,
-        device=device,
-    )
-
-    print(ecs.shape)
-    run.joinpath("ecs", "ec_mats").mkdir(parents=True, exist_ok=True)
-    ecs = np.permute_dims(
-        ecs, (1, 2, 0, 3)
-    )  # permute to (starting_point, pred_len, perturbed_region, output_region)
-    ecs = ecs.mean(axis=0)
-    for i in range(ecs.shape[0]):
-        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
-            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
-        )
-    run.joinpath("recon_signal").mkdir(parents=True, exist_ok=True)
-    ec = ecs.mean(axis=0)
-    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
-    plt.figure()
-    ec[np.eye(ec.shape[0]).astype(bool)] = 0
-    ec = ec / np.max(ec).max()
-    sns.heatmap(
-        ec,
-        cmap="RdBu_r",
-        cbar=True,
-        square=True,
-        xticklabels=False,
-        yticklabels=False,
-        center=0,
-    )
-    plt.title("EC")
-    plt.tight_layout()
-    plt.savefig(run.joinpath("figures", "ec.png"))
     pd.DataFrame(recon, columns=labels).to_csv(
         run.joinpath("recon_signal", "recon_signal.csv")
     )
@@ -532,43 +555,51 @@ def evaluate_on_train_end(
     plt.savefig(run.joinpath("figures", "correlation_plot.png"))
     plt.close()
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-    sns.heatmap(
-        real_fc,
-        ax=ax1,
-        vmin=-1.0,
-        vmax=1.0,
-        cmap="RdBu_r",
-        cbar=True,
-        square=True,
-        xticklabels=False,
-        yticklabels=False,
-        center=0,
-    )
-    sns.heatmap(
-        model_fc,
-        ax=ax2,
-        vmin=-1.0,
-        vmax=1.0,
-        cmap="RdBu_r",
-        cbar=True,
-        square=True,
-        xticklabels=False,
-        yticklabels=False,
-        center=0,
-    )
-    ax1.set_title("Empirical FC")
-    ax2.set_title("Model FC")
-    plt.tight_layout()
-    plt.savefig(run.joinpath("figures", "fc_heatmap.png"))
-    plt.close()
-    run.joinpath("connectomes").mkdir(parents=True, exist_ok=True)
     pd.DataFrame(real_fc, index=labels, columns=labels).to_csv(
         run.joinpath("connectomes", "real.csv")
     )
     pd.DataFrame(model_fc, index=labels, columns=labels).to_csv(
         run.joinpath("connectomes", "model.csv")
     )
+    real_fc[np.eye(real_fc.shape[0]).astype(bool)] = 0
+    model_fc[np.eye(model_fc.shape[0]).astype(bool)] = 0
+    plot_fc_diff(real_fc, model_fc, run)
+    ecs = get_ec(
+        model=model,
+        real_data=test_data,
+        steps=cfg.data.train.step,
+        pred_len=10,
+        regions=[[i] for i in range(len(labels))],
+        pert_len=1,
+        run=run,
+        device=device,
+    )
+
+    ecs = np.permute_dims(
+        ecs, (1, 2, 0, 3)
+    )  # permute to (starting_point, pred_len, perturbed_region, output_region)
+    ecs = ecs.mean(axis=0)
+    for i in range(ecs.shape[0]):
+        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
+            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
+        )
+    ec = ecs.mean(axis=0)
+    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
+    plt.figure()
+    ec[np.eye(ec.shape[0]).astype(bool)] = 0
+    ec /= np.abs(ec).max()
+    sns.heatmap(
+        ec,
+        cmap="RdBu_r",
+        cbar=True,
+        square=True,
+        xticklabels=False,
+        yticklabels=False,
+        center=0,
+    )
+    plt.title("EC")
+    plt.tight_layout()
+    plt.savefig(run.joinpath("figures", "ec.png"))
 
     df.index.name = "Scan"
     df = df.sort_index()
