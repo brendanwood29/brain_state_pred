@@ -1,5 +1,9 @@
-import matplotlib.pyplot as plt
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
+from scipy.stats import ecdf
+from tqdm import tqdm
 
 """
 
@@ -22,9 +26,13 @@ def NextTR(W, X_init, noise, dt, down_sample):
     return X_res
 
 
-def RNN(W, X_init, length, dt, down_sample, sigma, pert_strength=1.0, pert_step=200):
+def RNN(
+    W, X_init, length, dt, down_sample, sigma, sub_dir, pert_strength=1.0, pert_step=200
+):
 
-    np.random.seed(0)
+    ec_dir = sub_dir.joinpath("ecs")
+    ec_dir.mkdir(parents=True, exist_ok=True)
+
     # num nodes
     n = len(X_init)
     # inital state
@@ -54,41 +62,46 @@ def RNN(W, X_init, length, dt, down_sample, sigma, pert_strength=1.0, pert_step=
 
 
 if __name__ == "__main__":
-    node_n = 20
-    data_length = 8000
-
+    node_n = 400
+    data_length = 1200
     dt = 0.01
     TR = 1
     down_sample = int(TR / dt)
     sigma = 1
 
-    for random_seed in range(50):
+    data_dir = Path("data/data_400p/rnn")
+    for random_seed in tqdm(range(100), total=100):
         np.random.seed(random_seed)
+
+        sub = random_seed + 1
+        sub_dir = data_dir.joinpath(f"sub-{sub}", "ses-1", "func")
+        sub_dir.mkdir(parents=True, exist_ok=True)
 
         # strucutral connections
         SC = np.random.normal(0, 1 / np.sqrt(node_n), (node_n, node_n))
+
         # no self connections
         np.fill_diagonal(SC, 0)
+
         # initalize the current BOLD signal
         init = np.random.normal(0, 1, (node_n))
-        # do RNN
-        signal, real_EC = RNN(SC, init, data_length, dt, down_sample, sigma)
 
-    # np.savetxt(
-    #     "./sim_data/SC_{:03d}nodes_".format(node_n)
-    #     + "{:04d}steps_".format(data_length)
-    #     + "{:02d}seed.txt".format(random_seed),
-    #     SC,
-    # )
-    # np.savetxt(
-    #     "./sim_data/dynamics_{:03d}nodes_".format(node_n)
-    #     + "{:04d}steps_".format(data_length)
-    #     + "{:02d}seed.txt".format(random_seed),
-    #     signal,
-    # )
-    # np.savetxt(
-    #     "./sim_data/real_EC_{:03d}nodes_".format(node_n)
-    #     + "{:04d}steps_".format(data_length)
-    #     + "{:02d}seed.txt".format(random_seed),
-    #     real_EC,
-    # )
+        # do RNN
+        signal, real_EC = RNN(
+            SC,
+            init,
+            data_length,
+            dt,
+            down_sample,
+            sigma,
+            pert_strength=1.0,
+            pert_step=30,
+            sub_dir=sub_dir,
+        )
+
+        # pd.DataFrame(signal).to_csv(
+        #     sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_cleaned-timeseries.csv")
+        # )
+        # pd.DataFrame(real_EC).to_csv(
+        #     sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_EC.csv")
+        # )
