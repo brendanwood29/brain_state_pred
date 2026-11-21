@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.distributed as dist
 from omegaconf import OmegaConf
@@ -45,40 +44,15 @@ def get_config() -> ListConfig | DictConfig:
     return cfg
 
 
-def delay_signal(x, prev_x, num_steps, num_steps_back):
-    """Combines previous timepoint and current timepoint and
-    returns the correct window of the signal"""
-    comb = torch.cat([prev_x, x], dim=1)
-    delayed_signals = comb[
-        :, -num_steps - num_steps_back : -num_steps_back, :
-    ]  # Just get the most in the past signal
-    return delayed_signals
-
-
-def get_num_steps_back(num):
-
-    if num < 0.55:
-        num_steps_back = 1
-    elif num < 0.60:
-        num_steps_back = 2
-    elif num < 0.65:
-        num_steps_back = 3
-    # elif num < 0.70:
-    #     num_steps_back = 4
-    # elif num < 0.70:
-    #     num_steps_back = 5
-    # elif num < 0.75:
-    #     num_steps_back = 6
-    # elif num < 0.80:
-    #     num_steps_back = 7
-    else:
-        num_steps_back = 4
-    return num_steps_back
-
-
 class SingleSubjectBrainStateTrainer(Trainer):
     def __init__(self, cfg, model_getter, loss_getter):
         super().__init__(cfg, model_getter, get_loss_fn=loss_getter)
+
+        self.start_recursion = self.cfg.start_recursion
+        self.init_prob = self.cfg.init_prob
+        # simple exponential power curve to increase
+        self.exponent = np.log(self.init_prob) / np.log(self.start_recursion)
+
         self.num_steps = cfg.model.kwargs.steps
         self.num_model_steps = cfg.num_epochs * 4
 
@@ -89,11 +63,14 @@ class SingleSubjectBrainStateTrainer(Trainer):
         B, N = x.shape
         x = x.reshape(B, self.num_steps, int(N / self.num_steps))
         prev = prev.reshape(B, self.num_steps, int(N / self.num_steps))
+        # y = y.reshape(B, self.num_steps, int(N / self.num_steps))
         y = y.reshape(B, -1, self.cfg.data.num_regions)
+
         if self.current_mode == "Train":
             self.model.eval()
             x = self.schedule_recursion(x, prev)
             self.model.train()
+
         else:
             x = self.schedule_recursion(x, prev)
 
@@ -101,16 +78,49 @@ class SingleSubjectBrainStateTrainer(Trainer):
         loss = self.loss_fn(y_hat, y)
         return loss, B
 
+    @staticmethod
+    def delay_signal(x, prev_x, num_steps, num_steps_back):
+        """Combines previous timepoint and current timepoint and
+        returns the correct window of the signal"""
+        comb = torch.cat([prev_x, x], dim=1)
+        delayed_signals = comb[
+            :, -num_steps - num_steps_back : -num_steps_back, :
+        ]  # Just get the most in the past signal
+        return delayed_signals
+
+    @staticmethod
+    def get_num_steps_back(num):
+
+        if num < 0.30:
+            num_steps_back = 1
+        elif num < 0.40:
+            num_steps_back = 2
+        elif num < 0.50:
+            num_steps_back = 3
+        # elif num < 0.60:
+        #     num_steps_back = 4
+        # elif num < 0.70:
+        #     num_steps_back = 5
+        # elif num < 0.80:
+        #     num_steps_back = 6
+        # elif num < 0.90:
+        #     num_steps_back = 7
+        else:
+            num_steps_back = 4
+        return num_steps_back
+
+    def recursion_function(self):
+        return self.step**self.exponent
+
     @torch.no_grad()
     def schedule_recursion(self, x, prev):
-        k_include = self.cfg.k
-        prob_include = 1 - (
-            k_include / (k_include + torch.e ** (self.step / k_include))
-        )
-        prob_num = self.step / self.num_model_steps  # Percentage of training finished
+        # Percentage of training finished
+        perc_comp = self.step / self.num_model_steps
+
         if self.current_mode == "Train":
-            if (torch.rand(1).item() < prob_include) and (prob_num > 0.5):
-                num_steps_back = get_num_steps_back(prob_num)
+            if perc_comp > self.start_recursion:
+                prob_num = self.recursion_function()
+                num_steps_back = self.get_num_steps_back(prob_num)
                 x[:, -num_steps_back:, :] = self.get_prior_steps(
                     x, prev, num_steps_back
                 )
@@ -124,7 +134,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
     def get_prior_steps(self, x, prev, num_steps_back):
         """Recursively builds signal from past signals.
         Allows for the model to learn from its own predictions"""
-        delayed_signals = delay_signal(x, prev, self.num_steps, num_steps_back)
+        delayed_signals = self.delay_signal(x, prev, self.num_steps, num_steps_back)
         prior_outs = [self.model(delayed_signals)]
         for i in range(1, num_steps_back):
             model_input = torch.cat(
@@ -195,7 +205,7 @@ def main(cfg):
                     train_dataset.data[:100],
                     None,
                     trainer.model,
-                    label_file="data/utils/66p_labels.txt",
+                    label_file="data/utils/400p_labels.txt",
                     # mean=train_dataset.mean,
                     # std=train_dataset.std,
                     mean=torch.tensor(0),
