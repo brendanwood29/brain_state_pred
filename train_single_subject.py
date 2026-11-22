@@ -110,7 +110,7 @@ class SingleSubjectBrainStateTrainer(Trainer):
         return num_steps_back
 
     def recursion_function(self):
-        return self.step**self.exponent
+        return (self.step / self.num_model_steps) ** self.exponent
 
     @torch.no_grad()
     def schedule_recursion(self, x, prev):
