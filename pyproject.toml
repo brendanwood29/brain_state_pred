@@ -9,12 +9,15 @@ dependencies = [
     "dtw-python>=1.9.0",
     "matplotlib>=3.10.8",
     "nilearn>=0.13.1",
+    "numba>=0.68.1",
     "omegaconf>=2.3.0",
     "pandas>=3.0.1",
+    "pingouin>=0.7.0",
     "pytorch-trainer",
     "ruff>=0.15.12",
     "scipy>=1.17.1",
     "seaborn>=0.13.2",
+    "statannotations>=0.7.2",
     "svgutils>=0.3.4",
     "torch==2.7.0",
     "torch-geometric>=2.7.0",
@@ -90,4 +93,5 @@ select = ["E", "F", "I"]
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-extraPaths = './pytorch_trainer/src/pytorch_trainer/'
+extraPaths = ["./pytorch_trainer/src/pytorch_trainer/"]
+exclude = ["**/.git", "**/venv", "**/.venv", "**/__pycache__", "**/data_*"]
