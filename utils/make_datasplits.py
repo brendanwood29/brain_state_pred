@@ -76,10 +76,18 @@ def split_by_subjects(data_dir, splits):
         else:
             test.update((sub, data[sub]) for sub in data.keys())
 
+    if splits.joinpath("train.json").is_file():
+        raise FileExistsError("train.json exists!")
     with open(splits.joinpath("train.json"), "w") as f:
         json.dump(train, f, indent=4)
+
+    if splits.joinpath("val.json").is_file():
+        raise FileExistsError("val.json exists!")
     with open(splits.joinpath("val.json"), "w") as f:
         json.dump(val, f, indent=4)
+
+    if splits.joinpath("test.json").is_file():
+        raise FileExistsError("test.json exists!")
     with open(splits.joinpath("test.json"), "w") as f:
         json.dump(test, f, indent=4)
 
