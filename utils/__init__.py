@@ -1,8 +1,9 @@
 from pathlib import Path
 
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from torch_geometric.loader import DataLoader as PyGDataLoader
 
-from pytorch_trainer import LossGetter
+from pytorch_trainer import LossGetter, SchedulerGetter
 
 from .dataset import (
     BrainFuncGCNDataset,
@@ -10,13 +11,15 @@ from .dataset import (
     SingleSubjectBrainFuncDataset,
     SingleSubjectBrainFuncGCNDataset,
     SingleSubjectBrainFuncRecursiveDataset,
+    SingleSubjectBrainFuncRecursiveDatasetLong,
     SingleSubjectBrainFuncSTGCNDataset,
     SingleSubjectFFTFuncDataset,
 )
-from .loss_fns import MSE1DLoss, MSEFCLoss, RealImagMSE, ReconFourierLoss
+from .loss_fns import MSE1DLoss, MSEFCLoss, MultiStepMSE, RealImagMSE, ReconFourierLoss
 from .make_datasplits import split_single_subject
 
 __all__ = [
+    "SingleSubjectBrainFuncRecursiveDatasetLong",
     "SingleSubjectBrainFuncDataset",
     "SingleSubjectBrainFuncRecursiveDataset",
     "SingleSubjectBrainFuncGCNDataset",
@@ -47,9 +50,12 @@ def get_pyg_loader(
 
 get_loss_fn = LossGetter(
     {
+        "multi_step_loss": MultiStepMSE,
         "real_img_loss": RealImagMSE,
         "mse_fc_loss": MSEFCLoss,
         "mse_fourier_loss": ReconFourierLoss,
         "mse_first_loss": MSE1DLoss,
     }
 )
+
+get_scheduler = SchedulerGetter({"warm_restarts": CosineAnnealingWarmRestarts})

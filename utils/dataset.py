@@ -12,6 +12,63 @@ from torch_geometric.data import Data
 from torch_geometric.data import Dataset as PyGDataset
 
 
+class SingleSubjectBrainFuncRecursiveDatasetLong(TorchDataset):
+    def __init__(
+        self,
+        bold_data: np.ndarray,
+        step: int,
+        noise_strength: float = 0.1,
+        tr: float | None = None,
+        target_tr: float | None = None,
+        scaler: Literal["min_max", "std"] | MinMaxScaler | StandardScaler | None = None,
+    ):
+        super().__init__()
+
+        self.strength = noise_strength
+        self.step = step
+        data_length = bold_data.shape[0]
+
+        formatted_scalers = {"min_max": MinMaxScaler, "std": StandardScaler}
+
+        if target_tr is not None:
+            assert tr is not None, "Tr must be specified to resample timeseries"
+            new_len = int((data_length * tr) / target_tr)
+            bold_data = signal.resample(bold_data, new_len, axis=0)  # type: ignore
+            data_length = bold_data.shape[0]
+        if scaler is None:
+            pass
+        elif isinstance(scaler, str):
+            assert scaler in formatted_scalers, "scaler can only be `min_max` or `std`"
+            scaler = formatted_scalers[scaler]
+            bold_data = scaler.fit_transform(bold_data)  # type: ignore
+            self._scaler = scaler
+        else:
+            bold_data = scaler.transform(bold_data)
+        self.bold_data = torch.tensor(bold_data, dtype=torch.float)
+
+        self.idxs = [
+            (x, x + step) for x in range(step, data_length - step)
+        ]  # Start at step so we can go
+        # back in time to the start of the sequence and end step
+        # before the end of sequence so we can go that far into the future
+
+    @property
+    def data(self):
+        return self.bold_data
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, idx):
+        start, end = self.idxs[idx]
+        inp = self.bold_data[start - self.step : start].flatten()
+        out = self.bold_data[start:end].flatten()
+
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+
+        return inp + inp_noise, out
+
+
 class SingleSubjectBrainFuncRecursiveDataset(TorchDataset):
     def __init__(
         self,

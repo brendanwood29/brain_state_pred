@@ -1,7 +1,40 @@
-from typing import List
-
 import torch
 import torch.nn as nn
+
+
+class MultiStepMSE(nn.Module):
+    def __init__(self, recon_weight: float = 0.5, fc_weight: float = 0.5) -> None:
+        super().__init__()
+        self.loss = nn.MSELoss()
+        self.recon_weight = recon_weight
+        self.fc_weight = fc_weight
+
+    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, k: int):
+
+        multi_step = self.loss(y_hat, y[:, :k, :])
+        if k >= 4:
+            model_fc = self.corcoef(y_hat.mT, y_hat.mT)
+            real_fc = self.corcoef(y[:, :k, :].mT, y[:, :k, :].mT)
+            fc_loss = self.loss(model_fc, real_fc)
+            loss = (self.recon_weight * multi_step) + (self.fc_weight * fc_loss)
+            return loss
+
+        else:
+            return multi_step
+
+    def corcoef(self, x: torch.Tensor, y: torch.Tensor):
+        x_bar = x.mean(dim=-1)
+        y_bar = y.mean(dim=-1)
+
+        x_x_bar = x - x_bar.unsqueeze(-1)
+        y_y_bar = y - y_bar.unsqueeze(-1)
+
+        num = x_x_bar @ y_y_bar.mT
+        den = (
+            (x_x_bar**2).sum(dim=-1, keepdim=True)
+            @ (y_y_bar**2).sum(dim=-1, keepdim=True).mT
+        ) ** 0.5
+        return num / den
 
 
 class RealImagMSE(nn.Module):
