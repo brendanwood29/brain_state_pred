@@ -355,21 +355,30 @@ def plot_traces(i, test_data, recon, save_path, input_len=None):
 def plot_trace_imgs(real, recon, save_path, name):
     real = real.T
     recon = recon.T
-    panels = [
-        ("real signal", real, "viridis"),
-        ("recon signal", recon, "viridis"),
-        ("difference (real - recon)", real - recon, "coolwarm"),
-    ]
+    diff = real - recon
 
-    # Match every panel's colorbar range to the real signal's min/max.
+    # Match signals colours to real signal
     vmin, vmax = real.min(), real.max()
     if vmin > 0:
         norm = TwoSlopeNorm(vmin=vmin, vcenter=(vmax - vmin) / 2, vmax=vmax)
     else:
         norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
 
+    # Match diff colours to differences between signals
+    vmin, vmax = diff.min(), diff.max()
+    if vmin > 0:
+        diff_norm = TwoSlopeNorm(vmin=vmin, vcenter=(vmax - vmin) / 2, vmax=vmax)
+    else:
+        diff_norm = TwoSlopeNorm(vmin=vmin, vcenter=0, vmax=vmax)
+
+    panels = [
+        ("real signal", real, "viridis", norm),
+        ("recon signal", recon, "viridis", norm),
+        ("difference (real - recon)", diff, "coolwarm", diff_norm),
+    ]
+
     fig, axes = plt.subplots(1, 3, figsize=(28, 8), constrained_layout=True)
-    for ax, (title, data, cmap) in zip(axes, panels):
+    for ax, (title, data, cmap, norm) in zip(axes, panels):
         im = ax.imshow(
             data,
             aspect="auto",
@@ -438,14 +447,22 @@ def plot_fc_diff(real_fc, model_fc, run):
         yticklabels=False,
     )
 
-    sns.heatmap(real_fc, ax=ax1, **heatmap_kwargs)  # type: ignore
-    hm = sns.heatmap(model_fc, ax=ax2, **heatmap_kwargs)  # type: ignore
-    sns.heatmap(real_fc - model_fc, ax=ax3, **heatmap_kwargs)  # type: ignore
+    real_hm = sns.heatmap(real_fc, ax=ax1, **heatmap_kwargs)  # type: ignore
+    fig.colorbar(real_hm.collections[0], ax=ax1, shrink=0.6, pad=0.04)
 
-    fig.colorbar(hm.collections[0], ax=[ax1, ax2, ax3], shrink=0.6, pad=0.02)
-    ax1.set_title("Empirical FC")
+    model_hm = sns.heatmap(model_fc, ax=ax2, **heatmap_kwargs)  # type: ignore
+    fig.colorbar(model_hm.collections[0], ax=ax2, shrink=0.6, pad=0.04)
+
+    diff = model_fc - real_fc
+    # Worst the difference could be is +/- 2
+    heatmap_kwargs["vmin"] = -2
+    heatmap_kwargs["vmax"] = 2
+    diff_hm = sns.heatmap(diff, ax=ax3, **heatmap_kwargs)  # type: ignore
+    fig.colorbar(diff_hm.collections[0], ax=ax3, shrink=0.6, pad=0.04)
+
+    ax1.set_title("Real FC")
     ax2.set_title("Model FC")
-    ax3.set_title("Empirical - Model FC")
+    ax3.set_title("Model - Real FC")
 
     plt.savefig(run.joinpath("figures", "fc_heatmap.png"), bbox_inches="tight")
     plt.close()
@@ -536,18 +553,20 @@ def evaluate_on_train_end(
         run,
         "all_rfft",
     )
+
     r, p = pearsonr(remove_diag(real_fc), remove_diag(model_fc))
     df.at[run.name, "r"] = r  # type: ignore
     df.at[run.name, "p"] = p  # type: ignore
+
     plt.figure(figsize=(4.8, 4.8))
     plt.scatter(remove_diag(model_fc), remove_diag(real_fc))
-    plt.xlim(-0.7, 1.1)
-    plt.xticks([-0.5, 0.0, 1.0])
-    plt.xlabel("model FC")
-    plt.ylim(-0.7, 1.1)
-    plt.yticks([-0.5, 0.0, 1.0])
-    plt.ylabel("empirical FC")
-    plt.text(-0.6, 0.9, "r = {:.2f}, p = {:.0e}".format(r, p))
+    plt.xlim(-1.1, 1.1)
+    plt.xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+    plt.xlabel("Model FC")
+    plt.ylim(-1.1, 1.1)
+    plt.yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+    plt.ylabel("Real FC")
+    plt.text(-0.9, 0.9, f"r = {r:.2f}, p = {p:.0e}")
     ax = plt.gca()
     ax.spines["right"].set_visible(False)
     ax.spines["top"].set_visible(False)
