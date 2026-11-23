@@ -1,4 +1,5 @@
 import itertools
+from pathlib import Path
 from typing import Callable, Dict
 
 import matplotlib as mpl
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pingouin as pg
 import seaborn as sns
+from numpy import save
 from statannotations.Annotator import Annotator
 
 
@@ -16,6 +18,7 @@ def boxplot_with_stars(
     stat_test_kwargs: dict,
     ph_test: Callable[..., pd.DataFrame],
     ph_kwargs: dict,
+    save_path: Path,
     fname: str,
 ):
     # Make figure object
@@ -59,7 +62,8 @@ def boxplot_with_stars(
     plt.ylabel(f"{variable}")
     plt.xticks(rotation=15, ha="right")
     plt.tight_layout()
-    plt.savefig(f"{fname}.svg")
+    save_path.mkdir(parents=True, exist_ok=True)
+    plt.savefig(save_path.joinpath(f"{fname}.svg"))
     plt.close()
 
 
@@ -72,6 +76,7 @@ def main():
         "mamba_recursive": "results/recursive_with_fc/recursive_with_fc.csv",
     }
     metrics = ["r", "psd_r"]
+    save_path = Path("./figs/plotting_test")
 
     stat_test_kwargs = {
         "within": "Model",
@@ -97,6 +102,7 @@ def main():
             stat_test_kwargs=stat_test_kwargs,
             ph_test=pg.pairwise_tests,
             ph_kwargs=ph_kwargs,
+            save_path=save_path,
             fname=metric,
         )
 
