@@ -7,5 +7,7 @@ temp*
 splits*/
 work_dir/
 *result*/
-pytorch_trainer/
 *.out
+pytorch*/
+*.zip
+*.tar*
