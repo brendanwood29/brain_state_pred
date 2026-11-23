@@ -2,8 +2,6 @@ import itertools
 from typing import Callable, Dict
 
 import matplotlib as mpl
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import pandas as pd
 import pingouin as pg
@@ -11,84 +9,96 @@ import seaborn as sns
 from statannotations.Annotator import Annotator
 
 
-def plot_fcs(fcs, names, save_path):
-
-    fig, axes = plt.subplots(2, 2, figsize=(25, 25))
-    axes = axes.flatten()
-
-    for i, (ax, fc, name) in enumerate(zip(axes, fcs, names)):
-        fc = fc.to_numpy()
-
-        sns.heatmap(
-            fc,
-            ax=ax,
-            vmin=-1.0,
-            vmax=1.0,
-            cmap="RdBu_r",
-            cbar=False,
-            square=True,
-            xticklabels=False,
-            yticklabels=False,
-        )
-
-        ax.set_title(name, fontsize=50)
-
-    cbar_ax = fig.add_axes([0.92, 0.15, 0.02, 0.7])  # type: ignore
-
-    norm = mcolors.Normalize(vmin=-1.0, vmax=1.0)
-    sm = cm.ScalarMappable(cmap="RdBu_r", norm=norm)
-    cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.ax.tick_params(labelsize=25)
-    cbar.set_label("Pearson Correlation Coefficient", fontsize=30, labelpad=0)
-
-    plt.subplots_adjust(right=0.9)
-    # plt.tight_layout(rect=[0, 0, 0.9, 1])
-    plt.savefig(save_path, bbox_inches="tight")
-
-
 def boxplot_with_stars(
     models: Dict[str, pd.DataFrame],
     variable: str,
-    stat_test: Callable,
+    stat_test: Callable[..., pd.DataFrame],
     stat_test_kwargs: dict,
-    ph_test: Callable,
+    ph_test: Callable[..., pd.DataFrame],
     ph_kwargs: dict,
     fname: str,
 ):
+    # Make figure object
+    plt.figure(figsize=(12, 10))
+    ax = plt.gca()
+
     names = list(models.keys())
     names.sort()
     comparisons = list(itertools.combinations(names, 2))
     df = pd.concat([x for x in models.values()], ignore_index=True)
     result = stat_test(df, **stat_test_kwargs)
-    p_vals = []
-    result = ph_test(df, **ph_kwargs)
-    for comparison in comparisons:
-        p_vals.append(
-            result.loc[
-                (result.A == comparison[0]) & (result.B == comparison[1]),
-                "p_corr",
-            ].values[0]
-        )
 
-    plt.figure(figsize=(12, 10))
-    ax = plt.gca()
-    annotator = Annotator(
-        ax,
-        comparisons,
-        data=df,
-        x="Model",
-        y=variable,
-        order=names,
-    )
-    annotator.configure(hide_non_significant=True, text_format="simple", loc="outside")
-    annotator.set_pvalues(p_vals)
-    sns.boxplot(data=df, x="Model", y=variable, order=names, ax=ax)
-    annotator.annotate()
+    # Only plot with stars if significant
+    if result["p_unc"].iloc[0] < 0.05:
+        p_vals = []
+        result = ph_test(df, **ph_kwargs)
+        for comparison in comparisons:
+            p_vals.append(
+                result.loc[
+                    (result.A == comparison[0]) & (result.B == comparison[1]),
+                    "p_corr",
+                ].values[0]
+            )
+        annotator = Annotator(
+            ax,
+            comparisons,
+            data=df,
+            x="Model",
+            y=variable,
+            order=names,
+        )
+        annotator.configure(
+            hide_non_significant=True, text_format="simple", loc="outside"
+        )
+        annotator.set_pvalues(p_vals)
+        sns.boxplot(data=df, x="Model", y=variable, order=names, ax=ax)
+        annotator.annotate()
+    else:
+        sns.boxplot(data=df, x="Model", y=variable, order=names, ax=ax)
+
     plt.ylabel(f"{variable}")
     plt.xticks(rotation=15, ha="right")
     plt.tight_layout()
     plt.savefig(f"{fname}.svg")
     plt.close()
+
+
+def main():
+
+    model_paths = {
+        "baseline": "results/baseline_val_set/baseline_val_set.csv",
+        "mamba": "results/block_state-(4, 32)_d_conv-2_expand-4/block_state-(4, 32)_d_conv-2_expand-4.csv",
+        "transformer": "results/transformer_val_set/transformer_val_set.csv",
+        "mamba_recursive": "results/recursive_with_fc/recursive_with_fc.csv",
+    }
+    metrics = ["r", "psd_r"]
+
+    stat_test_kwargs = {
+        "within": "Model",
+        "subject": "Scan",
+        "correction": True,
+        "detailed": True,
+    }
+    ph_kwargs = {"within": "Model", "subject": "Scan", "padjust": "fdr_bh"}
+
+    models = {}
+    for model, path in model_paths.items():
+        df = pd.read_csv(path)
+        df.insert(df.shape[1], "Model", [model] * df.shape[0])
+        models[model] = df
+
+    for metric in metrics:
+        stat_test_kwargs["dv"] = metric
+        ph_kwargs["dv"] = metric
+        boxplot_with_stars(
+            models=models,
+            variable=metric,
+            stat_test=pg.rm_anova,
+            stat_test_kwargs=stat_test_kwargs,
+            ph_test=pg.pairwise_tests,
+            ph_kwargs=ph_kwargs,
+            fname=metric,
+        )
 
 
 if __name__ == "__main__":
@@ -111,114 +121,4 @@ if __name__ == "__main__":
     sns.set_theme(font_scale=1.5)
     sns.set_palette(my_colors)
 
-    # load models
-    baseline = pd.read_csv(
-        # "results/baseline_val_set_their-eval/baseline_val_set_their-eval.csv"
-        "results/baseline_val_set/baseline_val_set.csv"
-    )
-    baseline.insert(0, "Model", baseline.shape[0] * ["Baseline Single Sub."])
-    # baseline = baseline[baseline["recon_err"] < 40]
-    mamba_ss = pd.read_csv(
-        # "results/block_state-(4, 32)_d_conv-2_expand-4_their-eval/block_state-(4, 32)_d_conv-2_expand-4_their-eval.csv"
-        "results/block_state-(4, 32)_d_conv-2_expand-4/block_state-(4, 32)_d_conv-2_expand-4.csv"
-    )
-    mamba_ss.insert(0, "Model", mamba_ss.shape[0] * ["Mamba Single Sub."])
-    trans = pd.read_csv(
-        # "results/transformer_val_set_their-eval/transformer_val_set_their-eval.csv"
-        "results/transformer_val_set/transformer_val_set.csv"
-    )
-    trans.insert(0, "Model", trans.shape[0] * ["Transformer Single Sub."])
-    models = {
-        "Mamba Single Sub.": mamba_ss,
-        "Transformer Single Sub.": trans,
-        "Baseline Single Sub.": baseline,
-    }
-
-    # r
-    dv = "r"
-    boxplot_with_stars(
-        models,
-        dv,
-        pg.rm_anova,
-        {
-            "dv": dv,
-            "within": "Model",
-            "subject": "Scan",
-            "correction": True,
-            "detailed": True,
-        },
-        pg.pairwise_tests,
-        {"dv": dv, "within": "Model", "subject": "Scan", "padjust": "fdr_bh"},
-        fname=dv,
-    )
-
-    # dtw
-    dv = "dtw_dist"
-    boxplot_with_stars(
-        models,
-        dv,
-        pg.rm_anova,
-        {
-            "dv": dv,
-            "within": "Model",
-            "subject": "Scan",
-            "correction": True,
-            "detailed": True,
-        },
-        pg.pairwise_tests,
-        {"dv": dv, "within": "Model", "subject": "Scan", "padjust": "fdr_bh"},
-        fname=dv,
-    )
-
-    # recon err
-    dv = "recon_err"
-    boxplot_with_stars(
-        models,
-        dv,
-        pg.rm_anova,
-        {
-            "dv": dv,
-            "within": "Model",
-            "subject": "Scan",
-            "correction": True,
-            "detailed": True,
-        },
-        pg.pairwise_tests,
-        {"dv": dv, "within": "Model", "subject": "Scan", "padjust": "fdr_bh"},
-        fname=dv,
-    )
-
-    # recon r
-    dv = "recon_r"
-    boxplot_with_stars(
-        models,
-        dv,
-        pg.rm_anova,
-        {
-            "dv": dv,
-            "within": "Model",
-            "subject": "Scan",
-            "correction": True,
-            "detailed": True,
-        },
-        pg.pairwise_tests,
-        {"dv": dv, "within": "Model", "subject": "Scan", "padjust": "fdr_bh"},
-        fname=dv,
-    )
-    # psd
-    dv = "psd_r"
-    boxplot_with_stars(
-        models,
-        dv,
-        pg.rm_anova,
-        {
-            "dv": dv,
-            "within": "Model",
-            "subject": "Scan",
-            "correction": True,
-            "detailed": True,
-        },
-        pg.pairwise_tests,
-        {"dv": dv, "within": "Model", "subject": "Scan", "padjust": "fdr_bh"},
-        fname=dv,
-    )
+    main()
