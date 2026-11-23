@@ -1,17 +1,25 @@
 import math
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
+from scipy import signal
 from scipy.io import loadmat
+from scipy.stats.mstats import winsorize
 
 # Globals
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-load_data = loadmat("./Human_66.mat")
+load_data = loadmat("WBM_simulation_data/Human_66.mat")
 C = np.array(load_data["C"])
 anat_labels = load_data["anat_lbls"]
 order = np.array(load_data["Order"][0]) - 1
 C = (C[order].T)[order].T
 anat_labels = anat_labels[order]
+with open("WBM_simulation_data/66p_labels.txt", "w") as f:
+    for label in anat_labels:
+        f.write(label + "\n")
 
 C = C  # structural connectivity
 N = C.shape[0]  # number of nodes
@@ -151,5 +159,50 @@ def main():
         )
 
 
+def bandpass(data, low, high, fs, order=4):
+    ny = fs / 2
+    low = low / ny
+    high = high / ny
+    b, a = signal.butter(order, high, btype="lowpass")  # type: ignore
+    return signal.filtfilt(b, a, data, axis=0).copy()
+
+
+def organize_data():
+    data_path = Path(
+        "WBM_simulation_data/sim_data/dynamics_raw_T_8640_TR_720_seed_000.txt"
+    )
+    ec = Path("WBM_simulation_data/sim_data/real_EC_seed_000.txt")
+
+    data = np.loadtxt(data_path)
+    ec = np.loadtxt(ec)
+
+    save_path = Path("data/data_66p/wbm_sim/sub-01/ses-1/func")
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    data = data[21:]
+    data = winsorize(data, limits=[0.05, 0.05], axis=0)
+    data = bandpass(data, 0.10, 0.01, 0.72)
+
+    data = pd.DataFrame(data)
+    cols = data.columns
+    for col in cols:
+        data[col] = (data[col] - data[col].mean()) / data[col].std()
+
+    plt.figure()
+    plt.plot(data[0][:80])
+    plt.savefig("test.png")
+
+    data.to_csv(save_path.joinpath("sub-01_ses-1_cleaned-timeseries.csv"))
+    ec = pd.DataFrame(ec)
+    ec.to_csv(save_path.joinpath("sub-01_ses-1_EC.csv"))
+
+
+def plot_data(data):
+    plt.figure()
+    plt.plot(data[0].to_numpy()[20:])
+    plt.savefig("test.png")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    organize_data()
