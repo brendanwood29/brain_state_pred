@@ -6,6 +6,7 @@ from torch_geometric.loader import DataLoader as PyGDataLoader
 from pytorch_trainer import LossGetter, SchedulerGetter
 
 from .dataset import (
+    BaselineDataset,
     BrainFuncGCNDataset,
     BrainFuncRecursiveDataset,
     SingleSubjectBrainFuncDataset,
@@ -19,6 +20,7 @@ from .loss_fns import MSE1DLoss, MSEFCLoss, MultiStepMSE, RealImagMSE, ReconFour
 from .make_datasplits import split_single_subject
 
 __all__ = [
+    "BaselineDataset",
     "SingleSubjectBrainFuncRecursiveDatasetLong",
     "SingleSubjectBrainFuncDataset",
     "SingleSubjectBrainFuncRecursiveDataset",

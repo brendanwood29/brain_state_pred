@@ -185,6 +185,40 @@ class BrainFuncRecursiveDataset(TorchDataset):
         return inp + inp_noise, out, prev_inp
 
 
+class BaselineDataset(TorchDataset):
+    def __init__(
+        self,
+        bold_data: np.ndarray,
+        step: int,
+        noise_strength: float = 0.1,
+    ):
+        super().__init__()
+
+        self.strength = noise_strength
+        self.step = step
+        data_length = bold_data.shape[0]
+
+        self.bold_data = torch.tensor(bold_data, dtype=torch.float)
+
+        self.idxs = [
+            (x, x + step) for x in range(0, data_length - step)
+        ]  # Start at step so we can go back in time to the start of the sequence
+
+    @property
+    def data(self):
+        return self.bold_data
+
+    def __len__(self):
+        return len(self.idxs)
+
+    def __getitem__(self, idx):
+        start, end = self.idxs[idx]
+        inp = self.bold_data[start:end].flatten()
+        out = self.bold_data[[end]]
+        inp_noise = torch.normal(0, self.strength, inp.shape)
+        return inp + inp_noise, out
+
+
 class SingleSubjectBrainFuncDataset(TorchDataset):
     def __init__(
         self,
