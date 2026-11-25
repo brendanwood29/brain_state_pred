@@ -3,38 +3,47 @@ import torch.nn as nn
 
 
 class MultiStepMSE(nn.Module):
-    def __init__(self, recon_weight: float = 0.5, fc_weight: float = 0.5) -> None:
+    def __init__(self) -> None:
         super().__init__()
         self.loss = nn.MSELoss()
-        self.recon_weight = recon_weight
-        self.fc_weight = fc_weight
 
-    def forward(self, y_hat: torch.Tensor, y: torch.Tensor, k: int):
+    def forward(
+        self,
+        y_hat: torch.Tensor,
+        y: torch.Tensor,
+        k: int,
+    ):
 
-        multi_step = self.loss(y_hat, y[:, :k, :])
-        if k >= 4:
-            model_fc = self.corcoef(y_hat.mT, y_hat.mT)
-            real_fc = self.corcoef(y[:, :k, :].mT, y[:, :k, :].mT)
-            fc_loss = self.loss(model_fc, real_fc)
-            loss = (self.recon_weight * multi_step) + (self.fc_weight * fc_loss)
-            return loss
+        y = y[:, :k, :]
+        mse_loss = self.loss(y_hat, y)
 
-        else:
-            return multi_step
+        return mse_loss
 
-    def corcoef(self, x: torch.Tensor, y: torch.Tensor):
-        x_bar = x.mean(dim=-1)
-        y_bar = y.mean(dim=-1)
 
-        x_x_bar = x - x_bar.unsqueeze(-1)
-        y_y_bar = y - y_bar.unsqueeze(-1)
-
-        num = x_x_bar @ y_y_bar.mT
-        den = (
-            (x_x_bar**2).sum(dim=-1, keepdim=True)
-            @ (y_y_bar**2).sum(dim=-1, keepdim=True).mT
-        ) ** 0.5
-        return num / den
+# class MultiStepMSE(nn.Module):
+#     def __init__(self) -> None:
+#         super().__init__()
+#         self.loss = nn.MSELoss()
+#
+#     def forward(
+#         self,
+#         y_hat: torch.Tensor,
+#         y: torch.Tensor,
+#         x: torch.Tensor,
+#         k: int,
+#     ):
+#
+#         y = y[:, :k, :]
+#         mse_loss = self.loss(y_hat, y)
+#
+#         y = torch.cat([x, y], dim=1)
+#         y_hat = torch.cat([x, y_hat], dim=1)
+#
+#         y_fft = torch.fft.rfft(y.float(), dim=1, norm="ortho")
+#         y_hat_fft = torch.fft.rfft(y_hat.float(), dim=1, norm="ortho")
+#         err = (y_hat_fft - y_fft).abs().pow(2).mean()
+#
+#         return mse_loss + (0.5 * err)
 
 
 class RealImagMSE(nn.Module):
