@@ -18,8 +18,6 @@ class SingleSubjectBrainFuncRecursiveDatasetLong(TorchDataset):
         bold_data: np.ndarray,
         step: int,
         noise_strength: float = 0.1,
-        tr: float | None = None,
-        target_tr: float | None = None,
         scaler: Literal["min_max", "std"] | MinMaxScaler | StandardScaler | None = None,
     ):
         super().__init__()
@@ -30,11 +28,6 @@ class SingleSubjectBrainFuncRecursiveDatasetLong(TorchDataset):
 
         formatted_scalers = {"min_max": MinMaxScaler, "std": StandardScaler}
 
-        if target_tr is not None:
-            assert tr is not None, "Tr must be specified to resample timeseries"
-            new_len = int((data_length * tr) / target_tr)
-            bold_data = signal.resample(bold_data, new_len, axis=0)  # type: ignore
-            data_length = bold_data.shape[0]
         if scaler is None:
             pass
         elif isinstance(scaler, str):
