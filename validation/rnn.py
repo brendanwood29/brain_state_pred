@@ -99,9 +99,9 @@ if __name__ == "__main__":
             sub_dir=sub_dir,
         )
 
-        # pd.DataFrame(signal).to_csv(
-        #     sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_cleaned-timeseries.csv")
-        # )
-        # pd.DataFrame(real_EC).to_csv(
-        #     sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_EC.csv")
-        # )
+        pd.DataFrame(signal).to_csv(
+            sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_cleaned-timeseries.csv")
+        )
+        pd.DataFrame(real_EC).to_csv(
+            sub_dir.joinpath(f"sub-{random_seed + 1}_ses-1_EC.csv")
+        )
