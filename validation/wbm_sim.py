@@ -107,7 +107,7 @@ def main():
         TR = 0.72
         step = int(TR / dt)
         start = step - 1
-        T = int(TR * 12000)
+        T = int(TR * 1200)
         S_start = np.zeros(N)
         r_start = np.zeros(N)
         np.random.seed(random_seed)
@@ -163,7 +163,7 @@ def bandpass(data, low, high, fs, order=4):
     ny = fs / 2
     low = low / ny
     high = high / ny
-    b, a = signal.butter(order, high, btype="lowpass")  # type: ignore
+    b, a = signal.butter(order, (low, high), btype="bandpass")  # type: ignore
     return signal.filtfilt(b, a, data, axis=0).copy()
 
 
@@ -181,7 +181,7 @@ def organize_data():
 
     data = data[21:]
     data = winsorize(data, limits=[0.05, 0.05], axis=0)
-    data = bandpass(data, 0.10, 0.01, 0.72)
+    data = bandpass(data, 0.01, 0.1, 1 / 0.72)
 
     data = pd.DataFrame(data)
     cols = data.columns
@@ -204,5 +204,5 @@ def plot_data(data):
 
 
 if __name__ == "__main__":
-    # main()
-    organize_data()
+    main()
+    # organize_data()
