@@ -1,4 +1,3 @@
-import copy
 import shutil
 import warnings
 from pathlib import Path
@@ -31,7 +30,7 @@ def get_pearson_avg(arr, axis=None):
     return np.arctanh(mean_fish)
 
 
-def remove_diag(arr):
+def get_upper_tri(arr):
     return np.triu(arr, k=1).flatten()
 
 
@@ -57,14 +56,11 @@ def bandpass(data, low, high, fs, order=4):
     ny = fs / 2
     low = low / ny
     high = high / ny
-    b, a = signal.butter(order, high, btype="lowpass")  # type: ignore
+    b, a = signal.butter(order, (low, high), btype="bandpass")
     return signal.filtfilt(b, a, data, axis=0).copy()
 
 
-def get_recon_npi_method(model, real_data, steps, device, mean, std):
-    model.eval()
-    mean = mean.to(device)
-    std = std.to(device)
+def get_recon_npi_method(model, real_data, steps, device):
     outputs = [real_data[x] for x in range(steps)]
     for i in range(0, real_data.shape[0] - steps, 1):
         sim_input = torch.vstack([x for x in real_data[i : i + steps]]).to(
@@ -73,7 +69,7 @@ def get_recon_npi_method(model, real_data, steps, device, mean, std):
         inter_output = model(sim_input.unsqueeze(0).to(device)).squeeze(0)
         outputs.append(inter_output[-1])
         outputs = [x.to("cpu") for x in outputs]
-    outputs = torch.vstack(outputs).detach().cpu().numpy()
+    outputs = torch.vstack(outputs).cpu().numpy()
     real_data = real_data.cpu().numpy()
     return (
         outputs,
@@ -85,10 +81,7 @@ def get_recon_npi_method(model, real_data, steps, device, mean, std):
     )
 
 
-def get_recon(model, real_data, steps, device, mean, std):
-    model.eval()
-    mean = mean.to(device)
-    std = std.to(device)
+def get_recon(model, real_data, steps, device):
     outputs = [real_data[x] for x in range(steps)]
     while len(outputs) < real_data.shape[0]:
         sim_input = torch.vstack([x.to(device) for x in outputs[-steps:]]).to(
@@ -98,7 +91,7 @@ def get_recon(model, real_data, steps, device, mean, std):
         outputs.append(inter_output[-1])
         outputs = [x.to("cpu") for x in outputs]
 
-    outputs = torch.vstack(outputs).detach().cpu().numpy()
+    outputs = torch.vstack(outputs).cpu().numpy()
     real_data = real_data.cpu().numpy()
     return (
         outputs,
@@ -110,119 +103,10 @@ def get_recon(model, real_data, steps, device, mean, std):
     )
 
 
-def perturb_signal(inp, regions, length, strength, how="impulse"):
-
-    inp = torch.stack(inp[-length:], dim=1)
-
-    if how == "impulse":
-        inp = inp[:, [-1], :]
-        inp[:, :, regions] = inp[:, :, regions] + strength * torch.ones(
-            (inp.shape[0], 1, 1), device=inp.device, dtype=inp.dtype
-        )  # adding purturbation to signal
-
-    elif how == "npi":
-        strengths = torch.std(inp, dim=1)  # take std on the time dim (1)
-        strengths = strengths[:, regions].unsqueeze(1)  # get just the std of the roi
-        perturbed_signal = (
-            0.5
-            * strengths
-            * torch.ones((inp.shape[0], 1, 1), device=inp.device, dtype=inp.dtype)
-        )  # adding purturbation
-        inp[:, [-1], [regions]] = inp[:, [-1], [regions]] + perturbed_signal
-        return [inp[:, -1, :]]
-    elif how == "hrf":
-        hrf = (
-            torch.tensor(
-                [-0.5, 0, 0.25, 1, 2, 1, 0.25], device=inp.device, dtype=inp.dtype
-            )
-            .unsqueeze(0)
-            .unsqueeze(-1)
-        )
-        inp[:, :, regions] = inp[:, :, regions] + hrf * torch.ones(
-            (inp.shape[0], length, len(regions)), device=inp.device, dtype=inp.dtype
-        )  # adding purturbation to signal
-
-    return [inp[:, x, :] for x in range(inp.shape[1])]
-
-
-def get_ec(model, real_data, steps, pred_len, regions, pert_len, run, device):
-
-    # Create starting points at all possible starting points
-    # (steps, regions) len num start pts
-    real_inputs = [
-        real_data[x : x + steps] for x in range(real_data.shape[0] - steps - pred_len)
-    ]
-
-    # array of (num starting points, steps, regions)
-    stacked_inputs = torch.stack(real_inputs, dim=0)
-
-    # makes a list of arrays size (num start points, regions) of len steps
-    stacked_list = [stacked_inputs[:, x, :] for x in range(stacked_inputs.shape[1])]
-    real_inputs = copy.deepcopy(stacked_list)
-
-    # Makes unperturbed prediction
-    for _ in range(pred_len):
-        # Making input tensor of length steps, stack along time dim
-        inter_input_real = torch.stack(real_inputs[-steps:], dim=1).to(device)
-        # output is of size (num start points, 1, regions)
-        real_inputs.append(model(inter_input_real).squeeze(1).to("cpu"))
-
-    # `real` is time indexed, so slicing [steps:] yeilds just predicted timepoints
-    real = torch.stack(real_inputs[steps + 1 :], dim=1)
-    to_save = torch.stack(real_inputs, dim=1).cpu().numpy()
-
-    real_path = run.joinpath("ecs", "signals", "real")
-    real_path.mkdir(parents=True, exist_ok=True)
-
-    # Save (time, regions) array for each starting point
-    for i in range(to_save.shape[0]):
-        pd.DataFrame(to_save[i]).to_csv(real_path.joinpath(f"start-pt_{i}.csv"))
-
-    pred_path = run.joinpath("ecs", "signals", "pred")
-    pred_path.mkdir(parents=True, exist_ok=True)
-
-    ecs = []
-    for i, region in enumerate(regions):
-        # `pert_inputs` is a time indexed list of size (starting pts, regions)
-        pert_inputs = copy.deepcopy(stacked_list)
-        pert_inputs[-pert_len:] = perturb_signal(
-            pert_inputs,
-            region,
-            # pert_len,
-            8,
-            strength=5,
-            how="impulse",
-        )  # Replace the real signal with perturbed signal
-
-        for _ in range(pred_len):
-            inter_input_pert = torch.stack(pert_inputs[-steps:], dim=1).to(device)
-            pert_inputs.append(model(inter_input_pert).squeeze(1).to("cpu"))
-
-        pred_path.joinpath(f"pert_{i}").mkdir(parents=True, exist_ok=True)
-
-        # `pert` is time indexed, so slicing [steps:] yeilds just predicted timepoints
-        # final size of (starting points, pred_len, regions)
-        pert = torch.stack(pert_inputs[steps + 1 :], dim=1).cpu()
-        to_save = torch.stack(pert_inputs, dim=1).cpu().numpy()
-
-        for j in range(to_save.shape[0]):
-            pd.DataFrame(to_save[j]).to_csv(
-                pred_path.joinpath(f"pert_{i}", f"start-pt_{j}.csv")
-            )
-        ecs.append((pert - real).numpy())
-
-    return np.array(ecs)  # perturbed region, starting_point, pred_len, output_regions
-
-
-def get_model_fc_npi_method(
-    model, steps, sim_data_length, num_regions, device, mean, std
-):
+def get_model_fc_npi_method(model, steps, sim_data_length, num_regions, device):
 
     rng = np.random.default_rng(seed=42)
 
-    mean = mean.to(device)
-    std = std.to(device)
-    model.eval()
     outputs = [
         torch.zeros(num_regions, device=device, dtype=torch.float) for _ in range(steps)
     ]
@@ -241,12 +125,12 @@ def get_model_fc_npi_method(
 
     try:
         connectome = ConnectivityMeasure(kind="correlation").fit_transform(
-            outputs.detach().cpu().numpy()
+            outputs.cpu().numpy()
         )
+        return connectome[0]
     except ValueError:
         connectome = np.zeros((outputs.shape[1], outputs.shape[1]))
         return connectome
-    return connectome[0]
 
 
 def get_model_fc(pred_signal, steps):
@@ -254,53 +138,16 @@ def get_model_fc(pred_signal, steps):
     pred = pred_signal[steps:]
     try:
         connectome = ConnectivityMeasure(kind="correlation").fit_transform(pred)
+        return connectome[0]
     except ValueError:
         connectome = np.zeros((pred_signal.shape[1], pred_signal.shape[1]))
         return connectome
-    return connectome[0]
-
-
-def get_model_fc_gcn(model, steps, sim_data_length, num_regions, fc, threshold, device):
-
-    src, des = np.where(np.abs(fc) > threshold)
-    edge_idx = np.stack([src, des])
-    weights = np.abs(fc[src, des])
-    outputs = [
-        torch.zeros(num_regions, device=device, dtype=torch.float).to(device)
-        for _ in range(steps)
-    ]
-
-    for _ in range(sim_data_length):
-        noise = 0.1 * np.random.randn(steps, num_regions)
-        sim_input = torch.vstack(outputs[-steps:]).to(device) + torch.tensor(
-            noise, dtype=torch.float
-        ).to(device)
-        sim_input = Data(
-            x=sim_input[-steps:].t(),
-            edge_index=torch.tensor(edge_idx, dtype=torch.long).to(device),
-            edge_attr=torch.tensor(weights, dtype=torch.float).to(device),
-            # y=torch.tensor(bold_data[step], dtype=torch.float).unsqueeze(-1)
-        )
-        outputs.append(
-            model(sim_input.x, sim_input.edge_index, sim_input.edge_attr).t()
-        )
-    outputs = torch.vstack(outputs)
-    outputs = torch.nan_to_num(outputs, nan=0.0, posinf=5, neginf=-5)
-
-    try:
-        connectome = ConnectivityMeasure(kind="correlation").fit_transform(
-            outputs.detach().cpu().numpy()
-        )
-    except ValueError:
-        connectome = np.zeros((outputs.shape[1], outputs.shape[1]))
-        return connectome
-    return connectome[0]
 
 
 def get_signal_r(real_data, recon, steps):
     real_data = real_data[steps:]
     recon = recon[steps:]
-    r, p = pearsonr(real_data, recon, axis=0)
+    r, _ = pearsonr(real_data, recon, axis=0)
     return r
 
 
@@ -313,7 +160,7 @@ def get_psd_r(real_data, recon, tr, steps):
     recon_psd = welch(
         recon, fs=1 / tr, nperseg=recon.shape[0], axis=0, return_onesided=True
     )
-    r, p = pearsonr(real_psd[1], recon_psd[1], axis=0)
+    r, _ = pearsonr(real_psd[1], recon_psd[1], axis=0)
     return r
 
 
@@ -325,8 +172,8 @@ def get_dtw(real, recon, steps):
     norm_dtws = []
     for i in range(real.shape[1]):
         alignment = dtw(recon[:, i], real[:, i])
-        dtws.append(alignment.distance)  # type: ignore
-        norm_dtws.append(alignment.normalizedDistance)  # type: ignore
+        dtws.append(alignment.distance)
+        norm_dtws.append(alignment.normalizedDistance)
 
     return np.mean(np.array(dtws)), np.mean(np.array(norm_dtws))
 
@@ -447,17 +294,17 @@ def plot_fc_diff(real_fc, model_fc, run):
         yticklabels=False,
     )
 
-    real_hm = sns.heatmap(real_fc, ax=ax1, **heatmap_kwargs)  # type: ignore
+    real_hm = sns.heatmap(real_fc, ax=ax1, **heatmap_kwargs)
     fig.colorbar(real_hm.collections[0], ax=ax1, shrink=0.6, pad=0.04)
 
-    model_hm = sns.heatmap(model_fc, ax=ax2, **heatmap_kwargs)  # type: ignore
+    model_hm = sns.heatmap(model_fc, ax=ax2, **heatmap_kwargs)
     fig.colorbar(model_hm.collections[0], ax=ax2, shrink=0.6, pad=0.04)
 
     diff = model_fc - real_fc
     # Worst the difference could be is +/- 2
     heatmap_kwargs["vmin"] = -2
     heatmap_kwargs["vmax"] = 2
-    diff_hm = sns.heatmap(diff, ax=ax3, **heatmap_kwargs)  # type: ignore
+    diff_hm = sns.heatmap(diff, ax=ax3, **heatmap_kwargs)
     fig.colorbar(diff_hm.collections[0], ax=ax3, shrink=0.6, pad=0.04)
 
     ax1.set_title("Real FC")
@@ -468,10 +315,27 @@ def plot_fc_diff(real_fc, model_fc, run):
     plt.close()
 
 
+def plot_corr(real_fc, model_fc, r, p, run):
+    plt.figure(figsize=(4.8, 4.8))
+    plt.scatter(get_upper_tri(model_fc), get_upper_tri(real_fc))
+    plt.xlim(-1.1, 1.1)
+    plt.xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+    plt.xlabel("Model FC")
+    plt.ylim(-1.1, 1.1)
+    plt.yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
+    plt.ylabel("Real FC")
+    plt.text(-0.9, 0.9, f"r = {r:.2f}, p = {p:.0e}")
+    ax = plt.gca()
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    plt.tight_layout()
+    plt.savefig(run.joinpath("figures", "correlation_plot.png"))
+    plt.close()
+
+
 def evaluate_on_train_end(
     cfg: DictConfig | ListConfig,
     test_data,
-    real_fc,
     model,
     label_file,
     mean,
@@ -507,14 +371,14 @@ def evaluate_on_train_end(
     #     model, test_data, cfg.data.train.step, device, mean, std
     # )
     recon, real_data, recon_err = get_recon(
-        model, test_data, cfg.data.train.step, device, mean, std
+        model, test_data, cfg.data.train.step, device
     )
-    # model_fc = get_model_fc_npi_method(
-    #     model, cfg.data.train.step, 1200, len(labels), device, mean, std
-    # )
-    model_fc = get_model_fc(recon, cfg.data.train.step)
+    model_fc = get_model_fc_npi_method(
+        model, cfg.data.train.step, 1200, len(labels), device
+    )
+    # model_fc = get_model_fc(recon, cfg.data.train.step)
     real_fc = ConnectivityMeasure(kind="correlation").fit_transform(
-        test_data.detach().cpu().numpy()
+        test_data.cpu().numpy()
     )[0]
 
     plot_trace_imgs(real_data, recon, run.joinpath("figures"), "signal")
@@ -554,25 +418,11 @@ def evaluate_on_train_end(
         "all_rfft",
     )
 
-    r, p = pearsonr(remove_diag(real_fc), remove_diag(model_fc))
-    df.at[run.name, "r"] = r  # type: ignore
-    df.at[run.name, "p"] = p  # type: ignore
+    r, p = pearsonr(get_upper_tri(real_fc), get_upper_tri(model_fc))
+    df.at[run.name, "r"] = r
+    df.at[run.name, "p"] = p
 
-    plt.figure(figsize=(4.8, 4.8))
-    plt.scatter(remove_diag(model_fc), remove_diag(real_fc))
-    plt.xlim(-1.1, 1.1)
-    plt.xticks([-1.0, -0.5, 0.0, 0.5, 1.0])
-    plt.xlabel("Model FC")
-    plt.ylim(-1.1, 1.1)
-    plt.yticks([-1.0, -0.5, 0.0, 0.5, 1.0])
-    plt.ylabel("Real FC")
-    plt.text(-0.9, 0.9, f"r = {r:.2f}, p = {p:.0e}")
-    ax = plt.gca()
-    ax.spines["right"].set_visible(False)
-    ax.spines["top"].set_visible(False)
-    plt.tight_layout()
-    plt.savefig(run.joinpath("figures", "correlation_plot.png"))
-    plt.close()
+    plot_corr(real_fc, model_fc, r, p, run)
 
     pd.DataFrame(real_fc, index=labels, columns=labels).to_csv(
         run.joinpath("connectomes", "real.csv")
@@ -580,46 +430,8 @@ def evaluate_on_train_end(
     pd.DataFrame(model_fc, index=labels, columns=labels).to_csv(
         run.joinpath("connectomes", "model.csv")
     )
-    real_fc[np.eye(real_fc.shape[0]).astype(bool)] = 0
-    model_fc[np.eye(model_fc.shape[0]).astype(bool)] = 0
+
     plot_fc_diff(real_fc, model_fc, run)
-    ecs = get_ec(
-        model=model,
-        real_data=test_data,
-        steps=cfg.data.train.step,
-        pred_len=10,
-        regions=[[i] for i in range(len(labels))],
-        pert_len=1,
-        run=run,
-        device=device,
-    )
-
-    ecs = np.permute_dims(
-        ecs, (1, 2, 0, 3)
-    )  # permute to (starting_point, pred_len, perturbed_region, output_region)
-    ecs = ecs.mean(axis=0)
-    for i in range(ecs.shape[0]):
-        pd.DataFrame(ecs[i], index=labels, columns=labels).to_csv(
-            run.joinpath("ecs", "ec_mats", f"ec_{i}.csv")
-        )
-    ec = ecs.mean(axis=0)
-    pd.DataFrame(ec, index=labels, columns=labels).to_csv(run.joinpath("ecs", "ec.csv"))
-    plt.figure()
-    ec[np.eye(ec.shape[0]).astype(bool)] = 0
-    ec /= np.abs(ec).max()
-    sns.heatmap(
-        ec,
-        cmap="RdBu_r",
-        cbar=True,
-        square=True,
-        xticklabels=False,
-        yticklabels=False,
-        center=0,
-    )
-    plt.title("EC")
-    plt.tight_layout()
-    plt.savefig(run.joinpath("figures", "ec.png"))
-
     df.index.name = "Scan"
     df = df.sort_index()
     df.to_csv(f"{work_dir.joinpath(work_dir.name)}.csv")
